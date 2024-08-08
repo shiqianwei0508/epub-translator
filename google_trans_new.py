@@ -304,7 +304,7 @@ class google_translator:
             "User-Agent":
                 "Mozilla/5.0 (Windows NT 10.0; WOW64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/47.0.2526.106 Safari/537.36",
+                "Chrome/122.0.6261.95 Safari/537.36",
             "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
         }
         freq = self._package_rpc(text, lang_src, lang_tgt)
@@ -385,7 +385,7 @@ class google_translator:
             "User-Agent":
                 "Mozilla/5.0 (Windows NT 10.0; WOW64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/47.0.2526.106 Safari/537.36",
+                "Chrome/98.0.4758.139 Safari/537.36",
             "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
         }
         freq = self._package_rpc(text)

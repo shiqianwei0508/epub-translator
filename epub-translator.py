@@ -4,19 +4,21 @@ import re
 import shutil
 import sys
 import zipfile
+import time
+import random
 from multiprocessing.dummy import Pool as ThreadPool
 from pathlib import Path
 
 import requests
 import tqdm
-from bs4 import BeautifulSoup as bs
+from bs4 import BeautifulSoup
 from bs4 import element
 from google_trans_new import google_translator
 
-tool_version = '1.0.2'
+TOOL_VERSION = '1.1.0'
 LINE_SIZE = 90
 HEADERS = {
-    'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')}
+    'user-agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.95 Safari/537.36')}
 
 LANGUAGES = {
     'af': 'afrikaans',
@@ -149,9 +151,9 @@ def check_for_tool_updates():
         response = requests.get(
             release_api, headers=HEADERS, timeout=5).json()
         latest_release = response['tag_name'][1:]
-        if tool_version != latest_release:
+        if TOOL_VERSION != latest_release:
             print(
-                f'Current tool version: {pcolors.FAIL}{tool_version}{pcolors.ENDC}')
+                f'Current tool version: {pcolors.FAIL}{TOOL_VERSION}{pcolors.ENDC}')
             print(
                 f'Latest tool version: {pcolors.GREEN}{latest_release}{pcolors.ENDC}')
             print(
@@ -163,7 +165,8 @@ def check_for_tool_updates():
 
 class TranslatorEngine():
     def __init__(self):
-        self.dest_lang = 'vi'
+        # 构造函数，初始化属性，目标翻译语言、文件路径、文件名称、文件解压路径、html列表路径、翻译字典、翻译字典文件路径、字典格式、最大翻译字数？
+        self.dest_lang = 'zh-cn'
         self.file_path = ''
         self.file_name = ''
         self.file_extracted_path = ''
@@ -171,11 +174,12 @@ class TranslatorEngine():
         self.translation_dict = {}
         self.translation_dict_file_path = ''
         self.dict_format = '^[^:]+:[^:]+$'
-        self.max_trans_words = 5e3
+        self.max_trans_words = 5000
 
     def get_epub_file_info(self, file_path):
         self.file_path = file_path
         self.file_name = os.path.splitext(os.path.basename(file_path))[0]
+        # 在epub文件同级目录下，创建 "文件名_translated" 目录
         self.file_extracted_path = os.path.join(os.path.abspath(
             os.path.join(file_path, os.pardir)), self.file_name + '_translated')
 
@@ -194,12 +198,16 @@ class TranslatorEngine():
 
     def get_epub_html_path(self):
         for file_type in ['*.[hH][tT][mM][lL]', '*.[xX][hH][tT][mM][lL]', '*.[hH][tT][mM]']:
+
+            # 查找 self.file_extracted_path 路径下所有类型为 file_type 的文件，并将这些文件的绝对路径添加到 self.html_list_path 列表中
+            # rglob 是 Python pathlib 模块中 Path 类的一个方法。这个方法会生成当前路径下所有满足指定模式的文件和目录的路径，包括当前路径的所有子目录。这个方法的名称 rglob 是 "recursive glob" 的缩写，表示它是一个递归的全局搜索方法
             self.html_list_path += [str(p.resolve())
                                     for p in list(Path(self.file_extracted_path).rglob(file_type))]
 
     def multithreads_html_translate(self):
         pool = ThreadPool(8)
         try:
+            # 使用了 tqdm 库来显示处理进度。pool.imap_unordered(self.translate_html, self.html_list_path) 是一个迭代器，它会并行地对 self.html_list_path 列表中的每个元素调用 self.translate_html 函数。tqdm.tqdm() 函数会显示一个进度条，total=len(self.html_list_path) 设置了进度条的总长度，desc='Translating' 设置了进度条的描述
             for _ in tqdm.tqdm(pool.imap_unordered(self.translate_html, self.html_list_path), total=len(self.html_list_path), desc='Translating'):
                 pass
         except Exception:
@@ -209,14 +217,18 @@ class TranslatorEngine():
         pool.join()
 
     def translate_html(self, html_file):
+        # 打开了一个 HTML 文件，并将文件内容读入一个文件对象 f
         with open(html_file, encoding='utf-8') as f:
-            soup = bs(f, 'xml')
-
+            # 使用 BeautifulSoup 库解析了文件内容。'xml' 参数指定了解析器类型
+            soup = BeautifulSoup(f, 'xml')
+            # 提取所有的子元素，并将它们存入了一个列表 epub_eles
             epub_eles = list(soup.descendants)
 
             text_list = []
             for ele in epub_eles:
+                # 判断当前元素是否是一个文本元素，并且这个元素的文本内容不是空字符串或者 'html'
                 if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
+                    # 将当前元素的文本内容添加到 text_list 中
                     text_list.append(str(ele))
 
             translated_text = self.translate_tag(text_list)
@@ -277,6 +289,7 @@ class TranslatorEngine():
                 translate_text += translate_substr
         else:
             translate_text = translator.translate(text, self.dest_lang)
+            #time.sleep(random.uniform(1,3))
         return translate_text
 
     def multithreads_translate(self, text_list):
@@ -350,7 +363,7 @@ class TranslatorEngine():
             for file in files:
                 ziph.write(os.path.join(root, file),
                            os.path.relpath(os.path.join(root, file),
-                                           os.path.join(path, self.file_name + '_translated' + '\.')))
+                                           os.path.join(path, self.file_name + '_translated')))
 
     def start(self, file_path):
         self.get_epub_file_info(file_path)
@@ -361,21 +374,29 @@ class TranslatorEngine():
 
 
 if __name__ == "__main__":
+
+    # 创建一个ArgumentParser对象，并传入构造函数参数变量description
     parser = argparse.ArgumentParser(
         description='A tool for translating epub files to different languages using the Google Translate, with support for custom dictionaries.')
+
+    # 添加可选参数"-v",-v 是参数的短形式，--version 是参数的长形式。当用户在命令行中使用 -v 或 --version 时，程序将执行 version 动作，显示 epub-translator v%s，其中 %s 将被 TOOL_VERSION 的值替换
     parser.add_argument('-v', '--version', action='version',
-                        version='epub-translator v%s' % tool_version)
+                        version='epub-translator v%s' % TOOL_VERSION)
+    # 添加位置参数"epub_file_path"，用户需要提供一个 epub 文件的路径。程序将使用这个路径来找到要翻译的 epub 文件。type=str 指定了该参数的类型应为字符串
     parser.add_argument('epub_file_path', type=str,
                         help='path to the epub file')
+    # 添加可选参数"-l"，用于指定目标语言。-l 是参数的短形式，--lang 是参数的长形式。metavar='dest_lang' 指定了在帮助信息中显示的参数值的名称
     parser.add_argument('-l', '--lang', type=str, metavar='dest_lang',
                         help='destination language')
+    # 添加可选参数"-d"，用于指定翻译字典的路径。-d 是参数的短形式，--dict 是参数的长形式。metavar='dict_path' 指定了在帮助信息中显示的参数值的名称
     parser.add_argument('-d', '--dict', type=str, metavar='dict_path',
                         help='path to the translation dictionary')
+    # 使用parse_args方法解析parser对象，生成Namespace对象，参数会变成它的属性
     args = parser.parse_args()
 
     engine = TranslatorEngine()
 
-    check_for_tool_updates()
+    # check_for_tool_updates()
 
     if args.lang and args.lang not in LANGUAGES.keys():
         print('Can not find destination language: ' + args.lang)
