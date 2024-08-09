@@ -7,6 +7,7 @@ import zipfile
 import time
 import random
 from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import Pool
 from pathlib import Path
 
 import requests
@@ -217,20 +218,6 @@ class TranslatorEngine():
             self.html_list_path += [str(p.resolve())
                                     for p in list(Path(self.file_extracted_path).rglob(file_type))]
 
-    def multithreads_html_translate(self):
-        """使用多线程翻译 HTML 文件。"""
-        pool = ThreadPool(2)
-        try:
-            # 使用 tqdm 库显示处理进度
-            for _ in tqdm.tqdm(pool.imap_unordered(self.translate_html, self.html_list_path), total=len(self.html_list_path), desc='Translating'):
-                pass
-        except Exception as e:
-            print(f'Translating epub: [{pcolors.FAIL} FAIL {pcolors.ENDC}] - {e}')
-            raise
-        finally:
-            pool.close()
-            pool.join()
-
 
     def replace_translation_dict(self, text):
         """根据翻译字典替换文本中的内容。"""
@@ -284,46 +271,7 @@ class TranslatorEngine():
         return any('notranslate' in str(ele).lower() for ele in element.parents)
 
     def translate_html(self, xml_file):
-        # """翻译 XML 文件中的文本并写回文件，同时保留翻译前后的内容。"""
-        #
-        # try:
-        #     with open(xml_file, encoding='utf-8') as f:
-        #         soup = BeautifulSoup(f, 'xml')  # 使用 xml 解析器
-        #
-        #         # 提取所有文本元素内容，排除含有 notranslate 的标签
-        #         text_list = [str(ele) for ele in soup.descendants
-        #                      if isinstance(ele, element.NavigableString)
-        #                      and str(ele).strip() not in ['', 'html']
-        #                      and not self.has_notranslate(ele)
-        #                      and ele.parent.name not in ['meta', 'style', 'link']]
-        #
-        #         #print(f'text_list is : {text_list}...')
-        #
-        #         # 进行翻译，并将翻译后的内容与原始内容一起保留
-        #         translated_data = self.translate_tag(text_list)
-        #
-        #         # 用翻译后的文本替换原始文本
-        #         nextpos = -1
-        #         for ele in soup.descendants:
-        #             if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
-        #                 nextpos += 1
-        #                 if nextpos < len(translated_data):
-        #                     original_text, translated_text = translated_data[nextpos]
-        #                     print(f"{original_text} [Translated]: {translated_text}")
-        #                     # 替换文本
-        #                     ele.replace_with(
-        #                         element.NavigableString(f"{original_text} [Translated]: {translated_text}"))
-        #
-        #         # 将修改后的内容写回文件
-        #         with open(xml_file, "w", encoding="utf-8") as w:
-        #             w.write(str(soup))
-        #
-        #         # 随机等待时间，避免请求过于频繁
-        #         time.sleep(random.uniform(3, 9))
-        #
-        # except Exception as e:
-        #     print(f"An error occurred while translating {xml_file}: {e}")
-        """Translate text in an HTML file and write back the changes."""
+        """翻译 XML 文件中的文本并写回文件，同时保留翻译前后的内容。"""
         try:
             # 打开了一个 HTML 文件，并将文件内容读入一个文件对象 f
             with open(xml_file, encoding='utf-8') as f:
@@ -386,19 +334,55 @@ class TranslatorEngine():
         # print(f"translation_pairs: {translation_pairs}")
         return translation_pairs
 
-    def multithreads_translate(self, text_list):
-        """使用多线程翻译文本列表，返回原始文本和翻译文本的元组。"""
-        results = []
+    # def multithreads_translate(self, text_list):
+    #     """使用多线程翻译文本列表，返回原始文本和翻译文本的元组。"""
+    #     results = []
+    #     pool = ThreadPool(4)
+    #     try:
+    #         results = pool.map(self.translate_text, text_list)
+    #     except Exception as e:
+    #         print(f'Translating text: [{pcolors.FAIL} FAIL {pcolors.ENDC}] - {e}')
+    #         raise
+    #     finally:
+    #         pool.close()
+    #         pool.join()
+    #     return results
+    def multithreads_html_translate(self):
+        """使用多线程翻译 HTML 文件。"""
         pool = ThreadPool(4)
         try:
-            results = pool.map(self.translate_text, text_list)
+            # 使用 tqdm 库显示处理进度
+            for _ in tqdm.tqdm(pool.imap_unordered(self.translate_html, self.html_list_path), total=len(self.html_list_path), desc='Translating'):
+                pass
         except Exception as e:
-            print(f'Translating text: [{pcolors.FAIL} FAIL {pcolors.ENDC}] - {e}')
+            print(f'Translating epub: [{pcolors.FAIL} FAIL {pcolors.ENDC}] - {e}')
             raise
         finally:
             pool.close()
             pool.join()
+
+    def multithreads_translate(self, text_list):
+        """使用多进程翻译文本列表，返回原始文本和翻译文本的元组。"""
+        results = []
+        with Pool(processes=4) as pool:  # 替换为多进程
+            try:
+                results = pool.map(self.translate_text, text_list)
+            except Exception as e:
+                print(f'Translating text: [{pcolors.FAIL} FAIL {pcolors.ENDC}] - {e}')
+                raise
         return results
+    #
+    # def multithreads_html_translate(self):
+    #     """使用多进程翻译 HTML 文件。"""
+    #     with Pool(processes=4) as pool:  # 替换为多进程
+    #         try:
+    #             # 使用 tqdm 库显示处理进度
+    #             for _ in tqdm.tqdm(pool.imap_unordered(self.translate_html, self.html_list_path),
+    #                                total=len(self.html_list_path), desc='Translating'):
+    #                 pass
+    #         except Exception as e:
+    #             print(f'Translating epub: [{pcolors.FAIL} FAIL {pcolors.ENDC}] - {e}')
+    #             raise
 
     def translate_text(self, text):
         """翻译单个文本，支持字符串和字符串列表。"""
