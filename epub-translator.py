@@ -205,7 +205,7 @@ class TranslatorEngine():
                                     for p in list(Path(self.file_extracted_path).rglob(file_type))]
 
     def multithreads_html_translate(self):
-        pool = ThreadPool(8)
+        pool = ThreadPool(2)
         try:
             # 使用了 tqdm 库来显示处理进度。pool.imap_unordered(self.translate_html, self.html_list_path) 是一个迭代器，它会并行地对 self.html_list_path 列表中的每个元素调用 self.translate_html 函数。tqdm.tqdm() 函数会显示一个进度条，total=len(self.html_list_path) 设置了进度条的总长度，desc='Translating' 设置了进度条的描述
             for _ in tqdm.tqdm(pool.imap_unordered(self.translate_html, self.html_list_path), total=len(self.html_list_path), desc='Translating'):
@@ -217,35 +217,41 @@ class TranslatorEngine():
         pool.join()
 
     def translate_html(self, html_file):
-        # 打开了一个 HTML 文件，并将文件内容读入一个文件对象 f
-        with open(html_file, encoding='utf-8') as f:
-            # 使用 BeautifulSoup 库解析了文件内容。'xml' 参数指定了解析器类型
-            soup = BeautifulSoup(f, 'xml')
-            # 提取所有的子元素，并将它们存入了一个列表 epub_eles
-            epub_eles = list(soup.descendants)
+        """Translate text in an HTML file and write back the changes."""
+        try:
+            # 打开了一个 HTML 文件，并将文件内容读入一个文件对象 f
+            with open(html_file, encoding='utf-8') as f:
+                # 使用 BeautifulSoup 库解析了文件内容。'xml' 参数指定了解析器类型
+                soup = BeautifulSoup(f, 'xml')
+                # 提取所有的子元素，并将它们存入了一个列表 epub_eles
+                epub_eles = list(soup.descendants)
 
-            text_list = []
-            for ele in epub_eles:
-                # 判断当前元素是否是一个文本元素，并且这个元素的文本内容不是空字符串或者 'html'
-                if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
-                    # 将当前元素的文本内容添加到 text_list 中
-                    text_list.append(str(ele))
+                text_list = []
+                for ele in epub_eles:
+                    # 判断当前元素是否是一个文本元素，并且这个元素的文本内容不是空字符串或者 'html'
+                    if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
+                        # 将当前元素的文本内容添加到 text_list 中
+                        text_list.append(str(ele))
 
-            translated_text = self.translate_tag(text_list)
-            nextpos = -1
+                translated_text = self.translate_tag(text_list)
+                nextpos = -1
 
-            for ele in epub_eles:
-                if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
-                    nextpos += 1
-                    if nextpos < len(translated_text):
-                        content = self.replace_translation_dict(
-                            translated_text[nextpos])
-                        ele.replace_with(element.NavigableString(content))
+                for ele in epub_eles:
+                    if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
+                        nextpos += 1
+                        if nextpos < len(translated_text):
+                            content = self.replace_translation_dict(translated_text[nextpos])
+                            ele.replace_with(element.NavigableString(content))
 
-            with open(html_file, "w", encoding="utf-8") as w:
-                w.write(str(soup))
-            w.close()
-        f.close()
+                # 将修改后的内容写回文件
+                with open(html_file, "w", encoding="utf-8") as w:
+                    w.write(str(soup))
+
+            # 随机等待时间
+            time.sleep(random.uniform(3, 9))  # 随机等待3到9秒
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     def replace_translation_dict(self, text):
         if self.translation_dict:
@@ -281,7 +287,7 @@ class TranslatorEngine():
         return extracted_contents
 
     def translate_text(self, text):
-        translator = google_translator(timeout=5)
+        translator = google_translator(timeout=5, url_suffix="com.jp", proxies={'http': 'http://192.168.30.42:11110', 'https': 'http://192.168.30.42:11110'})
         if type(text) is not str:
             translate_text = ''
             for substr in text:

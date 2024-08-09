@@ -2,6 +2,7 @@
 # author LuShan
 # version : 1.1.9
 import json, requests, random, re
+import time
 from urllib.parse import quote
 import urllib3
 import logging
@@ -271,7 +272,7 @@ class google_translator:
         else:
             self.url_suffix = url_suffix
         url_base = "https://translate.google.{}".format(self.url_suffix)
-        self.url = url_base + "/_/TranslateWebserverUi/data/batchexecute"
+        self.url = url_base + "/_/TranslateWebserverUi/data/batchexecute?rpcids=MkEWBc&source-path=%2F&f.sid=-3046934525046984921&bl=boq_translate-webserver_20240806.05_p0&hl=zh-CN&soc-app=1&soc-platform=1&soc-device=1&_reqid=1461996&rt=c"
         self.timeout = timeout
 
     def _package_rpc(self, text, lang_src='auto', lang_tgt='auto'):
@@ -305,7 +306,8 @@ class google_translator:
                 "Mozilla/5.0 (Windows NT 10.0; WOW64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/122.0.6261.95 Safari/537.36",
-            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+            "Cookie": "HSID=AlLURtU6rcPLeB-yB; SSID=ABZ8x_r4ovcYun3as; APISID=bI9jqEjVxJi5dp-0/AIrH6gtop5Mrol8ed; SAPISID=H-ZuHh3ZP6KxCPio/Af8pXYaMCykl_aROW; __Secure-1PAPISID=H-ZuHh3ZP6KxCPio/Af8pXYaMCykl_aROW; __Secure-3PAPISID=H-ZuHh3ZP6KxCPio/Af8pXYaMCykl_aROW; SID=g.a000mQjBV3mD__jgjriXDaXS98VSS251iOgRiFmOgbWIHh13LVE4js9oxfx7eUcnbrljIYekYwACgYKAcwSARMSFQHGX2MiYIHQX_qlcP_axMPuiI5M_RoVAUF8yKquToav6qZ1RPore83UjlvG0076; __Secure-1PSID=g.a000mQjBV3mD__jgjriXDaXS98VSS251iOgRiFmOgbWIHh13LVE4wJXvtbI8GT3W0YpB0bY1cAACgYKARgSARMSFQHGX2MiQTP4u4FHXa8QVAr_m3qZHBoVAUF8yKrAVofKcacvGPdAkVvbcfHO0076; __Secure-3PSID=g.a000mQjBV3mD__jgjriXDaXS98VSS251iOgRiFmOgbWIHh13LVE4MO40ah1MGtrvrP9_JIsUxwACgYKATkSARMSFQHGX2Mi-cTCHZJezZfWueWvT-JZbRoVAUF8yKrjYhbT3JTNvGTqjmM5VtRI0076; SEARCH_SAMESITE=CgQI5psB; AEC=AVYB7cqBAxrYbaVz1qy7Vxua0BLq3CCryTXvdsJt6soPCjvLV6Pqwnhhmg; CONSENT=YES+; NID=516=NDq38g6H85Y0wK4M5Dg81dy36VqpkriQ8-X0CoTA_58xQNrapLu4WanhBQllH4sUnqGLPgQndawl9UfiWZ7VSR3y-W_CbleMnMKtDfLs6xy6_rLhhl_hLuc2WbvvCwFSWDhanHEacvthW918YlfGiuMu9nF-5GQPKPr1avO617ueXIQvYaqQbceu7Henl8fp-XtYFVdgrJBgipdYqe5U4NzB9jubxXFAUuskGutjjgangmux3Qog83GKjUTY_l0XVaTbWbMDFLCzJiMp6I8XdLUKHGwLugbe5G_FdWFMj3PRedH5QDVVhBG8Z9q0gdWFZwJmImSfHppboiq2hPxG2PhECbmALANgj52g0kAZBtaWqInTBzjgT6rKFYuYZyRbQO5NmfinCmWrrXmveDtxn9_xWbPvWRreO2R0IXOMWSs1b0jpMq3croE7V3Vx941LiRE7g4hQXBQ_SbXGeDxmRsqEetAif20p2jXycXReK9MwXcQO-9xYXZi7Wj144s9ezI9N_oeTwYn58lZox7f5pVRUOhWphjmafGem2Nn7w308K6srdqrr3P3vwSQYrkfe16r8MZvI-I_F1bHlmqE1URTvG2TgMeZ6--nMKtqf0b1JrANTI74GBqLiPrzoMuQm1xe47D5bJ1_RJWdtjmDIeoWU; __Secure-1PSIDTS=sidts-CjEB4E2dkRj4-a6jOOXLQP9Il5wpMU4pe0HBdfn615sObKizLVfjUMnso8EA7VqA6ly8EAA; __Secure-3PSIDTS=sidts-CjEB4E2dkRj4-a6jOOXLQP9Il5wpMU4pe0HBdfn615sObKizLVfjUMnso8EA7VqA6ly8EAA; OTZ=7680073_24_24__24_; SIDCC=AKEyXzXg_raJpcLrToS7mYtpDmGVAHuv-gM1cuDD3Oq4DSd3xt9tCbBVDz0yuLgVDS81epjL; __Secure-1PSIDCC=AKEyXzWUN9thY960MkFnDoIc6M-hvSoeA4m8fAyG-mKzAaOQPKUSzwSGf9x9LLqkRdgylHUKKQ; __Secure-3PSIDCC=AKEyXzUoN7w3kcJEntXS_8WPOIQwelmjmTTmpiqL9QuxYui1Nt279Q8HxZpzYui-3WDsl9FJ3A"
         }
         freq = self._package_rpc(text, lang_src, lang_tgt)
         response = requests.Request(method='POST',
