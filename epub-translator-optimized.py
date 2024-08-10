@@ -176,6 +176,9 @@ class TranslatorEngine():
         self.translation_dict_file_path = ''  # 翻译字典文件路径
         self.dict_format = '^[^:]+:[^:]+$'  # 翻译字典格式
         self.max_trans_words = 5000  # 最大翻译字数
+        self.min_trans_words = 2000  # 最大翻译字数
+        self.http_proxy='http://10.99.99.108:11110'
+        self.transapi_suffix='com'
 
     def get_epub_file_info(self, file_path):
         """获取 EPUB 文件信息，包括路径和名称，创建解压路径。"""
@@ -250,7 +253,7 @@ class TranslatorEngine():
         combined_single = ''
 
         for text in text_list:
-            randomMaxTransWords = random.randint(30, self.max_trans_words)  # 示例：设置较小的最大字数
+            randomMaxTransWords = random.randint(self.min_trans_words, self.max_trans_words)  # 示例：设置较小的最大字数
 
             combined_single += text + '  _____  '  # 添加文本和分隔符
             # print(f"combined_single : {combined_single}")
@@ -266,9 +269,9 @@ class TranslatorEngine():
 
         return combined_text
 
-    def has_notranslate(self, element):
-        """检查元素是否包含 notranslate 字样"""
-        return any('notranslate' in str(ele).lower() for ele in element.parents)
+    # def has_notranslate(self, element):
+    #     """检查元素是否包含 notranslate 字样"""
+    #     return any('notranslate' in str(ele).lower() for ele in element.parents)
 
     def translate_html(self, xml_file):
         """翻译 XML 文件中的文本并写回文件，同时保留翻译前后的内容。"""
@@ -280,19 +283,17 @@ class TranslatorEngine():
                 # 提取所有的子元素，并将它们存入了一个列表 epub_eles
                 epub_eles = list(soup.descendants)
 
-                # text_list = []
-                # for ele in epub_eles:
-                #     # 判断当前元素是否是一个文本元素，并且这个元素的文本内容不是空字符串或者 'html'
-                #     if isinstance(ele, element.NavigableString) and str(ele).strip() not in ['', 'html']:
-                #         # 将当前元素的文本内容添加到 text_list 中
-                #         text_list.append(str(ele))
-
                 # 提取所有文本元素内容，排除含有 notranslate 的标签
+                # text_list = [str(ele) for ele in epub_eles
+                #              if isinstance(ele, element.NavigableString)
+                #              and str(ele).strip() not in ['', 'html']
+                #              and not self.has_notranslate(ele)
+                #              and ele.parent.name not in ['meta', 'style', 'link']]
+
                 text_list = [str(ele) for ele in epub_eles
                              if isinstance(ele, element.NavigableString)
                              and str(ele).strip() not in ['', 'html']
-                             and not self.has_notranslate(ele)
-                             and ele.parent.name not in ['meta', 'style', 'link']]
+                             and ele.parent.name not in ['meta', 'style', 'link', 'code', 'li']]
 
                 translated_data = self.translate_tag(text_list)
                 nextpos = -1
@@ -304,14 +305,14 @@ class TranslatorEngine():
                             original_text, translated_text = translated_data[nextpos]
                             # content = self.replace_translation_dict(translated_text[nextpos])
                             # print(f"{original_text} [Translated]: {translated_text}")
-                            ele.replace_with(element.NavigableString(f"{original_text} [Translated]: {translated_text}"))
+                            ele.replace_with(element.NavigableString(f"{original_text}  {translated_text}"))
 
                 # 将修改后的内容写回文件
                 with open(xml_file, "w", encoding="utf-8") as w:
                     w.write(str(soup))
 
             # 随机等待时间
-            time.sleep(random.uniform(3, 9))  # 随机等待3到9秒
+            time.sleep(random.uniform(3, 5))  # 随机等待3到9秒
 
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -386,8 +387,8 @@ class TranslatorEngine():
 
     def translate_text(self, text):
         """翻译单个文本，支持字符串和字符串列表。"""
-        translator = google_translator(timeout=5, url_suffix="com.jp", proxies={'http': 'http://192.168.30.42:11110',
-                                                                                'https': 'http://192.168.30.42:11110'})
+        translator = google_translator(timeout=5, url_suffix=self.transapi_suffix, proxies={'http': self.http_proxy,
+                                                                                'https': self.http_proxy})
         max_retries = 5
         for attempt in range(max_retries):
             try:
