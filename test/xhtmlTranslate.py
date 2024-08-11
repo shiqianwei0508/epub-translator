@@ -174,4 +174,4 @@ if __name__ == "__main__":
 
     end_time = time.time()  # 记录结束时间
     execution_time = end_time - start_time  # 计算执行时间
-    logging.warning(f"Execution time: {execution_time:.2f} seconds")
+    logging.info(f"Execution time: {execution_time:.2f} seconds")
