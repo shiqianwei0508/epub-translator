@@ -284,11 +284,6 @@ class TranslatorEngine():
                 epub_eles = list(soup.descendants)
 
                 # 提取所有文本元素内容，排除含有 notranslate 的标签
-                # text_list = [str(ele) for ele in epub_eles
-                #              if isinstance(ele, element.NavigableString)
-                #              and str(ele).strip() not in ['', 'html']
-                #              and not self.has_notranslate(ele)
-                #              and ele.parent.name not in ['meta', 'style', 'link']]
 
                 text_list = [str(ele) for ele in epub_eles
                              if isinstance(ele, element.NavigableString)
