@@ -41,6 +41,9 @@ def process_chapter(item, file_path, args):
             logging.debug(f"章节 {item.get_id()} 翻译成功")
             return item.get_id(), translated_content
 
+        except FileNotFoundError as fnf_error:
+            logging.error(f"文件未找到: {fnf_error}")
+            return item.get_id(), None
         except Exception as e:
             logging.error(f"处理章节时出错: {e}")
             return item.get_id(), None
@@ -65,7 +68,7 @@ def translate_epub(file_path, args):
         chapters = list(book.get_items_of_type(epub.EpubHtml))
 
         # 创建进程池
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.Pool(processes=args.processes) as pool:
             # 使用 tqdm 显示进度条
             results = list(tqdm(pool.imap(lambda item: process_chapter(item, file_path, args), chapters), total=len(chapters), desc=f"翻译进度 - {file_path}"))
 
@@ -95,7 +98,7 @@ if __name__ == '__main__':
 
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='翻译 EPUB 文件')
-    parser.add_argument('file_paths', type=str, nargs='+', help='EPUB 文件路径（至少输入一个）')
+    parser.add_argument('file_paths', type=str, nargs='*', help='EPUB 文件路径（至少输入一个）')
 
     # 添加翻译参数
     parser.add_argument('--http_proxy', type=str, default=None, help='HTTP 代理（例如：http://your.proxy:port）')
@@ -103,6 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--dest_lang', type=str, required=True, help='目标语言（例如：zh-cn）')
     parser.add_argument('--transMode', type=int, choices=[1, 2], default=1, help='翻译模式（1: 仅翻译文本，2: 返回原文+翻译文本）')
     parser.add_argument('--TranslateThreadWorkers', type=int, default=16, help='翻译线程工作数（默认16）')
+    parser.add_argument('--processes', type=int, default=4, help='并行进程数（默认4）')
 
     args = parser.parse_args()
 
@@ -115,6 +119,14 @@ if __name__ == '__main__':
         args.dest_lang = args.dest_lang or config.get('translation', 'dest_lang', fallback=None)
         args.transMode = args.transMode or config.getint('translation', 'transMode', fallback=1)
         args.TranslateThreadWorkers = args.TranslateThreadWorkers or config.getint('translation', 'TranslateThreadWorkers', fallback=16)
+
+        # 从新的 [files] 块读取
+        args.epub_file_path = config.get('files', 'epub_file_path', fallback=None)
+        args.processes = args.processes or config.getint('files', 'processes', fallback=4)
+
+    # 如果没有通过命令行传递文件路径，使用配置文件中的路径
+    if not args.file_paths and args.epub_file_path:
+        args.file_paths = args.epub_file_path.split(',')
 
     # 调用主函数
     main(args.file_paths, args)
