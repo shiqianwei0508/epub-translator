@@ -1,132 +1,180 @@
-import multiprocessing
-import logging
 import os
-import argparse
+import sys
 import configparser
-import tempfile
+import logging
+import argparse
+import multiprocessing
 from ebooklib import epub
-from tqdm import tqdm
-from xhtmlTranslate import XHTMLTranslator
+from bs4 import BeautifulSoup
+from xhtmlTranslate import XHTMLTranslator, Logger
 
-def process_chapter(item, file_path, args):
-    if item.get_type() == epub.EpubHtml:
-        temp_file_path = None
-        output_temp_file_path = None
+class EPUBTranslator:
+    def __init__(self, file_paths, processes, http_proxy, transapi_suffixes, dest_lang, trans_mode, logger):
+        self.file_paths = file_paths
+        self.processes = processes
+        self.http_proxy = http_proxy
+        self.transapi_suffixes = transapi_suffixes
+        self.dest_lang = dest_lang
+        self.trans_mode = trans_mode
+        self.logger = logger
+
+
+    def extract_chapters(self, epub_path):
+        self.logger.debug(f"Extracting chapters from: {epub_path}")
         try:
-            original_content = item.get_body_content_str()
-            logging.debug(f"处理章节: {item.get_id()}")
+            # 读取EPUB文件
+            book = epub.read_epub(epub_path)
+            chapters = []
 
-            # 创建临时文件以存储章节内容，并设置为自动删除
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.xhtml') as temp_file:
-                temp_file.write(original_content.encode('utf-8'))
-                temp_file_path = temp_file.name  # 记录临时文件路径
+            # 获取所有项目
+            items = book.get_items()
+            self.logger.debug(f"Items found in the book: {[item.get_id() for item in items]}")
 
-            # 使用 XHTMLTranslator 类进行翻译
-            translator = XHTMLTranslator(
-                http_proxy=args.http_proxy,
-                transapi_suffixes=args.transapi_suffixes,
-                dest_lang=args.dest_lang,
-                transMode=args.transMode,
-                TranslateThreadWorkers=args.TranslateThreadWorkers
-            )
+            # 遍历所有项目，寻找EpubHtml类型的章节
+            for item in items:
+                if isinstance(item, epub.EpubHtml):
+                    chapters.append(item)
+                    self.logger.debug(f"Found chapter: {item.get_id()} - Title: {item.get_title()}")
 
-            # 处理临时文件进行翻译
-            output_temp_file_path = temp_file_path.replace('.xhtml', '_translated.xhtml')
-            translator.process_xhtml(temp_file_path, output_temp_file_path)
-
-            # 读取翻译后的内容
-            with open(output_temp_file_path, 'r', encoding='utf-8') as translated_file:
-                translated_content = translated_file.read()
-
-            logging.debug(f"章节 {item.get_id()} 翻译成功")
-            return item.get_id(), translated_content
-
-        except FileNotFoundError as fnf_error:
-            logging.error(f"文件未找到: {fnf_error}")
-            return item.get_id(), None
+            self.logger.debug(f"Extracted {len(chapters)} chapters from: {epub_path}")
+            return chapters
         except Exception as e:
-            logging.error(f"处理章节时出错: {e}")
-            return item.get_id(), None
+            self.logger.error(f"Error extracting chapters from {epub_path}: {e}")
+            return []
 
-        finally:
-            # 删除临时文件
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-            if output_temp_file_path and os.path.exists(output_temp_file_path):
-                os.remove(output_temp_file_path)
 
-    return None
+    def translate_chapter(self, chapter_item, chapter_index, total_chapters):
+        self.logger.debug(f"Starting translation for chapter {chapter_index + 1}/{total_chapters}")
+        try:
+            translator = XHTMLTranslator(self.http_proxy, self.transapi_suffixes, self.dest_lang, self.trans_mode)
+            translated_content = translator.translate(chapter_item.get_body_content_str())
+            if not translated_content.strip():
+                raise ValueError("翻译内容为空")
+            self.logger.debug(f"Finished translation for chapter {chapter_index + 1}/{total_chapters}")
+            return translated_content, chapter_item.get_id()
+        except ValueError as ve:
+            self.logger.error(f"Value error for chapter {chapter_index + 1}: {ve}")
+            return "", chapter_item.get_id()
+        except Exception as e:
+            self.logger.error(f"Error translating chapter {chapter_index + 1}: {e}")
+            return "", chapter_item.get_id()  # 返回空内容和章节ID
 
-def translate_epub(file_path, args):
-    try:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"找不到文件: {file_path}")
+    def update_chapters(self, book, translated_chapters):
+        for translated_content, chapter_id in translated_chapters:
+            if translated_content:  # 只更新非空的翻译内容
+                chapter_item = book.get_item_with_id(chapter_id)
+                chapter_item.set_body_content(translated_content)
+                self.logger.debug(f"Updated chapter with ID {chapter_id}")
+            else:
+                self.logger.warning(f"Skipping update for chapter ID {chapter_id} due to empty translated content.")
 
-        logging.debug(f"正在读取 EPUB 文件: {file_path}")
-        book = epub.read_epub(file_path)
+    def process_epub(self, epub_path):
+        chapters = self.extract_chapters(epub_path)
+        if not chapters:
+            self.logger.error(f"No chapters extracted from {epub_path}. Skipping file.")
+            return
 
-        chapters = list(book.get_items_of_type(epub.EpubHtml))
+        total_chapters = len(chapters)
 
-        # 创建进程池
-        with multiprocessing.Pool(processes=args.processes) as pool:
-            # 使用 tqdm 显示进度条
-            results = list(tqdm(pool.imap(lambda item: process_chapter(item, file_path, args), chapters), total=len(chapters), desc=f"翻译进度 - {file_path}"))
+        with multiprocessing.Pool(processes=self.processes) as pool:
+            results = []
+            for index, chapter_item in enumerate(chapters):
+                result = pool.apply_async(self.translate_chapter, (chapter_item, index, total_chapters))
+                results.append(result)
 
-        # 更新书籍中的章节内容
-        for item_id, new_content in filter(None, results):
-            if new_content is not None:
-                item = book.get_item_with_id(item_id)
-                item.set_body_content(new_content)
+            translated_chapters = [result.get() for result in results]
 
-        # 保存修改后的 EPUB 文件
-        output_file = f'translated_{os.path.basename(file_path)}'
-        epub.write_epub(output_file, book)
-        logging.info(f"翻译完成！已保存为: {output_file}")
+        # 更新EPUB文件中的章节
+        book = epub.read_epub(epub_path)
+        self.update_chapters(book, translated_chapters)
 
-    except FileNotFoundError as fnf_error:
-        logging.error(fnf_error)
-    except Exception as e:
-        logging.error(f"发生错误: {e}")
+        # 保存更新后的EPUB文件，使用原文件名加 "_translated"
+        base_name = os.path.splitext(epub_path)[0]
+        new_epub_path = f"{base_name}_translated.epub"
+        try:
+            epub.write_epub(new_epub_path, book)
+            self.logger.debug(f"Saved updated EPUB file as: {new_epub_path}")
+        except Exception as e:
+            self.logger.error(f"Error saving updated EPUB file {new_epub_path}: {e}")
 
-def main(file_paths, args):
-    for file_path in file_paths:
-        translate_epub(file_path, args)
+    def translate(self):
+        for epub_path in self.file_paths:
+            self.logger.debug(f"Processing EPUB file: {epub_path}")
+            try:
+                self.process_epub(epub_path)
+            except Exception as e:
+                self.logger.error(f"Error processing EPUB file {epub_path}: {e}")
 
-if __name__ == '__main__':
-    # 配置日志
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+class ConfigLoader:
+    def __init__(self, config_file, args):
+        self.config = configparser.ConfigParser()
+        self.config.read(config_file)
+        self.args = args
+
+    def get_config(self):
+        # 从命令行参数或配置文件中获取所有参数
+        http_proxy = self.args.http_proxy or self.config.get('translation', 'http_proxy', fallback=None)
+        transapi_suffixes = self.args.transapi_suffixes or self.config.get('translation', 'transapi_suffixes',
+                                                                           fallback=None)
+        dest_lang = self.args.dest_lang or self.config.get('translation', 'dest_lang', fallback=None)
+        trans_mode = self.args.transMode or self.config.getint('translation', 'transMode', fallback=1)
+        translate_thread_workers = self.args.TranslateThreadWorkers or self.config.getint('translation',
+                                                                                          'TranslateThreadWorkers',
+                                                                                          fallback=16)
+
+        file_paths = self.args.file_paths if self.args.file_paths else self.config.get('files', 'epub_file_path',
+                                                                                       fallback=None).split(',')
+        processes = self.args.processes or self.config.getint('files', 'processes', fallback=4)
+
+        log_file = self.args.log_file or self.config.get('Logger', 'log_file', fallback='app.log')
+
+        # 打印配置以进行调试
+        print(
+            f"Config loaded: {http_proxy}, {transapi_suffixes}, {dest_lang}, {trans_mode}, {translate_thread_workers}, {file_paths}, {processes}, {log_file}")
+
+        return {
+            "file_paths": file_paths,
+            "processes": processes,
+            "http_proxy": http_proxy,
+            "transapi_suffixes": transapi_suffixes.split(','),
+            "dest_lang": dest_lang,
+            "trans_mode": trans_mode,
+            "translate_thread_workers": translate_thread_workers,
+            "log_file": log_file
+        }
+
+
+def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='翻译 EPUB 文件')
     parser.add_argument('file_paths', type=str, nargs='*', help='EPUB 文件路径（至少输入一个）')
 
     # 添加翻译参数
     parser.add_argument('--http_proxy', type=str, default=None, help='HTTP 代理（例如：http://your.proxy:port）')
-    parser.add_argument('--transapi_suffixes', type=str, required=True, help='翻译 API 后缀，以逗号分隔（例如：com,com.tw,co.jp）')
-    parser.add_argument('--dest_lang', type=str, required=True, help='目标语言（例如：zh-cn）')
+    parser.add_argument('--transapi_suffixes', type=str, help='翻译 API 后缀，以逗号分隔（例如：com,com.tw,co.jp）')
+    parser.add_argument('--dest_lang', type=str, help='目标语言（例如：zh-cn）')
     parser.add_argument('--transMode', type=int, choices=[1, 2], default=1, help='翻译模式（1: 仅翻译文本，2: 返回原文+翻译文本）')
     parser.add_argument('--TranslateThreadWorkers', type=int, default=16, help='翻译线程工作数（默认16）')
     parser.add_argument('--processes', type=int, default=4, help='并行进程数（默认4）')
+    parser.add_argument('--log_file', type=str, default='app.log', help='日志文件路径（默认: app.log）')
 
     args = parser.parse_args()
 
     # 支持配置文件读取
-    config = configparser.ConfigParser()
-    if os.path.exists('config.ini'):
-        config.read('config.ini')
-        args.http_proxy = args.http_proxy or config.get('translation', 'http_proxy', fallback=None)
-        args.transapi_suffixes = args.transapi_suffixes or config.get('translation', 'transapi_suffixes', fallback=None)
-        args.dest_lang = args.dest_lang or config.get('translation', 'dest_lang', fallback=None)
-        args.transMode = args.transMode or config.getint('translation', 'transMode', fallback=1)
-        args.TranslateThreadWorkers = args.TranslateThreadWorkers or config.getint('translation', 'TranslateThreadWorkers', fallback=16)
+    config_loader = ConfigLoader('config.ini', args)
+    config = config_loader.get_config()
 
-        # 从新的 [files] 块读取
-        args.epub_file_path = config.get('files', 'epub_file_path', fallback=None)
-        args.processes = args.processes or config.getint('files', 'processes', fallback=4)
+    # 检查必需参数
+    if not config['transapi_suffixes'] or not config['dest_lang']:
+        parser.error("缺少必需的参数: --transapi_suffixes 和 --dest_lang")
 
-    # 如果没有通过命令行传递文件路径，使用配置文件中的路径
-    if not args.file_paths and args.epub_file_path:
-        args.file_paths = args.epub_file_path.split(',')
+    # 使用已存在的Logger类
+    logger = Logger(config['log_file'])
+    translator = EPUBTranslator(config['file_paths'], config['processes'], config['http_proxy'],
+                                config['transapi_suffixes'], config['dest_lang'], config['trans_mode'], logger)
+    translator.translate()
 
-    # 调用主函数
-    main(args.file_paths, args)
+
+if __name__ == "__main__":
+    main()
