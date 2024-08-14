@@ -25,13 +25,6 @@ class EPUBTranslator:
         self.translate_thread_workers = translate_thread_workers
         self.tags_to_translate = tags_to_translate
 
-    # @staticmethod
-    # def extract_epub(epub_file, output_dir):
-    #     with zipfile.ZipFile(epub_file, 'r') as zip_ref:
-    #         zip_ref.extractall(output_dir)
-    #     print(f'Extracted {epub_file} to {output_dir}')
-    #     # return output_dir
-
     @staticmethod
     def extract_epub(epub_file, output_dir):
         # 检查输出目录是否存在
@@ -136,7 +129,8 @@ class EPUBTranslator:
     @staticmethod
     def update_progress(current, total):
         progress = (current / total) * 100
-        print(f"Progress: {progress:.2f}% - Translated {current} of {total} chapters.")
+        print()
+        print(f"\nProgress: {progress:.2f}% - Translated {current} of {total} chapters.\n")
 
     def process_epub(self, epub_path):
         """
@@ -163,12 +157,6 @@ class EPUBTranslator:
             return
 
         total_chapters = len(chapters)
-
-        # with multiprocessing.Pool(processes=self.processes) as pool:
-        #     for index, chapter_item in enumerate(chapters):
-        #         self.logger.debug(f"index: {index}, chapter: {chapter_item}")
-        #         pool.apply_async(self.translate_chapter, (chapter_item, index, total_chapters),
-        #                          callback=lambda _: EPUBTranslator.update_progress(index + 1, total_chapters))
 
         current_progress = multiprocessing.Value('i', 0)  # 共享变量
 
