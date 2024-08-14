@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import shutil
+import sqlite3
 import time
 import zipfile
 import configparser
@@ -25,31 +26,46 @@ class EPUBTranslator:
         self.translate_thread_workers = translate_thread_workers
         self.tags_to_translate = tags_to_translate
 
+    # @staticmethod
+    # def extract_epub(epub_file, output_dir):
+    #     # 检查输出目录是否存在
+    #     if os.path.exists(output_dir):
+    #         # 提示用户确认重建
+    #         confirm = input(f"The directory '{output_dir}' already exists. Do you want to recreate it? (y/n): ")
+    #         if confirm.lower() != 'y':
+    #             logging.info("Operation cancelled by the user.")
+    #             return  # 用户选择不重建，直接返回
+    #
+    #         # 清空现有目录
+    #         for filename in os.listdir(output_dir):
+    #             file_path = os.path.join(output_dir, filename)
+    #             if os.path.isfile(file_path):
+    #                 os.remove(file_path)  # 删除文件
+    #             elif os.path.isdir(file_path):
+    #                 shutil.rmtree(file_path)  # 删除子目录
+    #
+    #     # 创建新的输出目录
+    #     os.makedirs(output_dir, exist_ok=True)  # exist_ok=True，确保如果目录已存在不会抛出异常
+    #
+    #     try:
+    #         with zipfile.ZipFile(epub_file, 'r') as zip_ref:
+    #             zip_ref.extractall(output_dir)
+    #         logging.info(f'Extracted {epub_file} to {output_dir}')
+    #     except FileNotFoundError:
+    #         logging.error(f'The file {epub_file} does not exist.')
+    #     except zipfile.BadZipFile:
+    #         logging.error(f'The file {epub_file} is not a zip file or it is corrupted.')
+    #     except Exception as e:
+    #         logging.error(f'An error occurred while extracting {epub_file}: {e}')
+
     @staticmethod
     def extract_epub(epub_file, output_dir):
-        # 检查输出目录是否存在
-        if os.path.exists(output_dir):
-            # 提示用户确认重建
-            confirm = input(f"The directory '{output_dir}' already exists. Do you want to recreate it? (y/n): ")
-            if confirm.lower() != 'y':
-                logging.info("Operation cancelled by the user.")
-                return  # 用户选择不重建，直接返回
-
-            # 清空现有目录
-            for filename in os.listdir(output_dir):
-                file_path = os.path.join(output_dir, filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)  # 删除文件
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)  # 删除子目录
-
-        # 创建新的输出目录
-        os.makedirs(output_dir, exist_ok=True)  # exist_ok=True，确保如果目录已存在不会抛出异常
 
         try:
             with zipfile.ZipFile(epub_file, 'r') as zip_ref:
                 zip_ref.extractall(output_dir)
             logging.info(f'Extracted {epub_file} to {output_dir}')
+
         except FileNotFoundError:
             logging.error(f'The file {epub_file} does not exist.')
         except zipfile.BadZipFile:
@@ -94,6 +110,7 @@ class EPUBTranslator:
         return xhtml_files
 
     def translate_chapter(self, chapter_item, chapter_index, total_chapters):
+
         self.logger.debug(f"Starting translation for chapter {chapter_index + 1}/{total_chapters}")
         with open(chapter_item, 'r', encoding='utf-8') as file:
             xhtml_content = file.read()
@@ -118,13 +135,84 @@ class EPUBTranslator:
             self.logger.error(f"Error translating chapter {chapter_index + 1}: {e}")
             # return "", chapter_item # 返回空内容和chapter路径
 
-    def translate_with_delay(self, chapter_item, index, total):
-        # 翻译章节
-        self.translate_chapter(chapter_item, index, total)
+    def translate_with_delay(self, chapter_item, index, total, db_path):
+        conn = None
+        cursor = None
+
+        try:
+            # 打开数据库链接，记录翻译状态
+            conn = sqlite3.connect(os.path.join(db_path, 'translation_status.db'))
+            cursor = conn.cursor()
+
+            # 开始翻译
+            cursor.execute('''
+                        UPDATE status SET status = '进行中' WHERE chapter_path = ?
+                    ''', (chapter_item,))
+            conn.commit()
+
+            # 翻译章节
+            self.translate_chapter(chapter_item, index, total)
+
+            # 完成翻译
+            cursor.execute('''
+                        UPDATE status SET status = '已完成' WHERE chapter_path = ?
+                    ''', (chapter_item,))
+            conn.commit()
+        except Exception as e:
+            # 翻译出错
+            if cursor:
+                cursor.execute('''
+                    UPDATE status SET status = '错误', error_message = ? WHERE chapter_path = ?
+                ''', (str(e), chapter_item,))
+                conn.commit()
+
+        finally:
+            # 关闭数据库链接
+            if conn:
+                conn.commit()
+                conn.close()
+
         # 添加随机等待时间，范围在1到5秒之间
         wait_time = random.uniform(10, 30)
         self.logger.debug(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
         time.sleep(wait_time)
+
+    # def translate_with_delay(self, chapter_item, index, total, db_path):
+    #
+    #     # 记录翻译状态
+    #     try:
+    #         # 打开数据库链接，记录翻译状态
+    #         conn = sqlite3.connect(os.path.join(db_path, 'translation_status.db'))
+    #         cursor = conn.cursor()
+    #         # 开始翻译
+    #         cursor.execute('''
+    #                     UPDATE status SET status = '进行中' WHERE chapter_path = ?
+    #                 ''', (chapter_item,))
+    #         cursor.commit()
+    #
+    #         # 翻译章节
+    #         self.translate_chapter(chapter_item, index, total)
+    #
+    #         # 完成翻译
+    #         cursor.execute('''
+    #                     UPDATE status SET status = '已完成' WHERE chapter_path = ?
+    #                 ''', (chapter_item,))
+    #         cursor.commit()
+    #     except Exception as e:
+    #         # 翻译出错
+    #         cursor.execute('''
+    #                 UPDATE status SET status = '错误', error_message = ? WHERE chapter_path = ?
+    #             ''', (str(e), chapter_item,))
+    #         cursor.commit()
+    #
+    #     # 关闭数据库链接
+    #     conn.commit()
+    #     conn.close()
+    #
+    #     # 添加随机等待时间，范围在1到5秒之间
+    #     wait_time = random.uniform(10, 30)
+    #     self.logger.debug(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
+    #     time.sleep(wait_time)
 
     @staticmethod
     def update_progress(current, total):
@@ -138,25 +226,89 @@ class EPUBTranslator:
         :param epub_path:  提供epub文件的路径
 
         处理步骤：
-        1. 使用extract_epub方法解压epub文件到`os.path.splitext(epub_path)[0]_translated`目录中
-        2. 使用find_xhtml_files方法遍历所有xhtml文件，并返回一个包含所有xhtml绝对路径的列表
-        3. 使用translate_chapter方法翻译xhtml文件，并修改
-        4. 压缩为'os.path.splitext(epub_path)[0]_translated.epub'文件
+        1. 解压 EPUB 文件到临时目录。
+        2. 遍历所有 XHTML 文件并返回一个包含所有 XHTML 绝对路径的列表。
+        3. 创建 SQLite 数据库，并将所有章节的路径插入到数据库中，状态设为 "未开始"。
+        4. 查询所有状态为 '未开始' 的章节路径，并将这些路径放入 `chapters_not_complete` 列表中。
+        5. 使用多进程并行处理所有未完成的章节。
+        6. 从临时目录创建新的 EPUB 文件。
+        7. 成功翻译之后，删除临时目录
         """
         base_name = os.path.splitext(epub_path)[0]
         epub_extracted_path = f"{base_name}_translated"
 
-        EPUBTranslator.extract_epub(epub_path, epub_extracted_path)
-        xhtml_files = EPUBTranslator.find_xhtml_files(epub_extracted_path)
-        self.logger.debug(f"xhtml_files: {xhtml_files}")
-        self.logger.debug(f"Extracted {len(xhtml_files)} xhtml files")
+        def initial_work_dir(tmp_path):
+            # 创建新的输出目录
+            os.makedirs(tmp_path, exist_ok=True)  # exist_ok=True，确保如果目录已存在不会抛出异常
 
-        chapters = xhtml_files
-        if not chapters:
-            self.logger.error(f"No chapters extracted from {epub_path}. Skipping file.")
-            return
+            EPUBTranslator.extract_epub(epub_path, tmp_path)
+            xhtml_files = EPUBTranslator.find_xhtml_files(tmp_path)
 
-        total_chapters = len(chapters)
+            self.logger.debug(f"xhtml_files: {xhtml_files}")
+            self.logger.debug(f"Extracted {len(xhtml_files)} xhtml files")
+
+            chapters = xhtml_files
+
+            if not chapters:
+                self.logger.error(f"No chapters extracted from {epub_path}. Skipping file.")
+                return
+
+            # 创建 SQLite 数据库
+            try:
+                translate_conn = sqlite3.connect(os.path.join(tmp_path, 'translation_status.db'))
+                translate_cursor = translate_conn.cursor()
+                translate_cursor.execute('''CREATE TABLE IF NOT EXISTS status(
+                                                            chapter_path TEXT PRIMARY KEY,
+                                                            status TEXT NOT NULL,
+                                                            error_message TEXT
+                                                            )
+                                                        '''
+                                   )
+
+                # 把所有章节路径写入数据库
+                for chapter_path in chapters:
+                    # conn = sqlite3.connect(os.path.join(tmp_path, 'translation_status.db'))
+                    # cursor = conn.cursor()
+                    # 尝试使用 utf-8 编码插入数据
+                    translate_cursor.execute("INSERT INTO status (chapter_path, status) VALUES (?, '未开始')",
+                                   (chapter_path,))
+
+                translate_conn.commit()
+                translate_conn.close()
+            except Exception as e:
+                self.logger.error(f"Error Create db and status table: {e}")
+
+            logging.info(f'Created SQLite database in {tmp_path}')
+
+        # 检查输出目录是否存在
+        if os.path.exists(epub_extracted_path):
+            # 提示用户确认是否删除
+            confirm = input(f"The directory '{epub_extracted_path}' already exists. Do you want to delete it? (y/n): ")
+            if confirm.lower() == 'y':
+                shutil.rmtree(epub_extracted_path)  # 直接删除目录及其所有内容
+
+                # 初始化
+                initial_work_dir(epub_extracted_path)
+            else:
+                logging.info(f"use the exist Directory and DB")
+        else:
+            logging.info(f"extract epub to the Directory and create DB.")
+            initial_work_dir(epub_extracted_path)
+
+
+
+
+        conn = sqlite3.connect(os.path.join(epub_extracted_path, 'translation_status.db'))
+        cursor = conn.cursor()
+
+        # 查询所有 status 为 '未开始' 的 chapter_path
+        cursor.execute("SELECT chapter_path FROM status WHERE status = '未开始'")
+        chapters_not_complete = [row[0] for row in cursor.fetchall()]
+
+        conn.commit()
+        conn.close()
+
+        total_chapters = len(chapters_not_complete)
 
         current_progress = multiprocessing.Value('i', 0)  # 共享变量
 
@@ -166,9 +318,9 @@ class EPUBTranslator:
                 EPUBTranslator.update_progress(current_progress.value, total_chapters)
 
         with multiprocessing.Pool(processes=self.processes) as pool:
-            for index, chapter_item in enumerate(chapters):
+            for index, chapter_item in enumerate(chapters_not_complete):
                 self.logger.debug(f"Processing chapter: {index} {chapter_item}")
-                pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters),
+                pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters, epub_extracted_path),
                                  callback=update_progress_callback)
                 self.logger.debug(f"Processed chapter: {index} {chapter_item}")
 
@@ -178,13 +330,14 @@ class EPUBTranslator:
 
         EPUBTranslator.create_epub_from_directory(epub_extracted_path, f"{base_name}_translated.epub")
 
+        # 清理临时目录
+        # shutil.rmtree(epub_extracted_path)
+
     def translate(self):
         for epub_path in self.file_paths:
             self.logger.debug(f"Processing EPUB file: {epub_path}")
-            try:
-                self.process_epub(epub_path)
-            except Exception as e:
-                self.logger.error(f"Error processing EPUB file {epub_path}: {e}")
+
+            self.process_epub(epub_path)
 
 
 class ConfigLoader:
