@@ -2,6 +2,7 @@ import fnmatch
 import logging
 import os
 import random
+import shutil
 import time
 import zipfile
 import configparser
@@ -124,6 +125,14 @@ class EPUBTranslator:
             self.logger.error(f"Error translating chapter {chapter_index + 1}: {e}")
             # return "", chapter_item # 返回空内容和chapter路径
 
+    def translate_with_delay(self, chapter_item, index, total):
+        # 翻译章节
+        self.translate_chapter(chapter_item, index, total)
+        # 添加随机等待时间，范围在1到5秒之间
+        wait_time = random.uniform(10, 30)
+        self.logger.debug(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
+        time.sleep(wait_time)
+
     @staticmethod
     def update_progress(current, total):
         progress = (current / total) * 100
@@ -168,18 +177,12 @@ class EPUBTranslator:
                 current_progress.value += 1
                 EPUBTranslator.update_progress(current_progress.value, total_chapters)
 
-        def translate_with_delay(chapter_item, index, total):
-            # 翻译章节
-            self.translate_chapter(chapter_item, index, total)
-            # 添加随机等待时间，范围在1到5秒之间
-            wait_time = random.uniform(30, 60)
-            time.sleep(wait_time)
-
         with multiprocessing.Pool(processes=self.processes) as pool:
             for index, chapter_item in enumerate(chapters):
-                self.logger.debug(f"Processing chapter: {chapter_item}")
-                pool.apply_async(translate_with_delay, (chapter_item, index, total_chapters),
+                self.logger.debug(f"Processing chapter: {index} {chapter_item}")
+                pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters),
                                  callback=update_progress_callback)
+                self.logger.debug(f"Processed chapter: {index} {chapter_item}")
 
             # 等待所有进程完成
             pool.close()
