@@ -11,7 +11,7 @@ from xhtmlTranslate import XHTMLTranslator, Logger
 
 class EPUBTranslator:
     def __init__(self, file_paths, processes, http_proxy, gtransapi_suffixes, dest_lang,
-                 trans_mode, logger, translate_thread_workers):
+                 trans_mode, logger, translate_thread_workers, tags_to_translate):
         self.file_paths = file_paths
         self.processes = processes
         self.http_proxy = http_proxy
@@ -20,12 +20,13 @@ class EPUBTranslator:
         self.trans_mode = trans_mode
         self.logger = logger
         self.translate_thread_workers = translate_thread_workers
+        self.tags_to_translate = tags_to_translate
 
     @staticmethod
     def extract_epub(epub_file, output_dir):
         with zipfile.ZipFile(epub_file, 'r') as zip_ref:
             zip_ref.extractall(output_dir)
-        logging.debug(f'Extracted {epub_file} to {output_dir}')
+        print(f'Extracted {epub_file} to {output_dir}')
         # return output_dir
 
     @staticmethod
@@ -50,13 +51,24 @@ class EPUBTranslator:
     def find_xhtml_files(directory):
         xhtml_files = []
 
+        # # 遍历指定的目录
+        # for dirpath, dirnames, filenames in os.walk(directory):
+        #     for filename in fnmatch.filter(filenames, '*.xhtml'):
+        #         # 构造绝对路径
+        #         absolute_path = os.path.join(dirpath, filename)
+        #         # xhtml_files.append((filename, absolute_path))
+        #         xhtml_files.append(absolute_path)
+
+        extensions = ['*.html', '*.xhtml']  # 定义要查找的扩展名列表
+
         # 遍历指定的目录
         for dirpath, dirnames, filenames in os.walk(directory):
-            for filename in fnmatch.filter(filenames, '*.xhtml'):
-                # 构造绝对路径
-                absolute_path = os.path.join(dirpath, filename)
-                # xhtml_files.append((filename, absolute_path))
-                xhtml_files.append(absolute_path)
+            for ext in extensions:  # 遍历扩展名列表
+                matches = fnmatch.filter(filenames, ext)
+                for filename in matches:
+                    # 构造绝对路径
+                    absolute_path = os.path.join(dirpath, filename)
+                    xhtml_files.append(absolute_path)
 
         return xhtml_files
 
@@ -68,8 +80,8 @@ class EPUBTranslator:
             translator = XHTMLTranslator(http_proxy=self.http_proxy, gtransapi_suffixes=self.gtransapi_suffixes,
                                          dest_lang=self.dest_lang, transMode=self.trans_mode,
                                         TranslateThreadWorkers=self.translate_thread_workers,
-                                         logger=self.logger)
-            translated_content = translator.process_xhtml(xhtml_content)
+                                         logger=self.logger, tags_to_translate=self.tags_to_translate)
+            translated_content = translator.process_xhtml(xhtml_content, self.tags_to_translate)
             if not translated_content.strip():
                 raise ValueError("翻译内容为空")
 
@@ -85,7 +97,8 @@ class EPUBTranslator:
             self.logger.error(f"Error translating chapter {chapter_index + 1}: {e}")
             # return "", chapter_item # 返回空内容和chapter路径
 
-    def update_progress(self, current, total):
+    @staticmethod
+    def update_progress(current, total):
         progress = (current / total) * 100
         print(f"Progress: {progress:.2f}% - Translated {current} of {total} chapters.")
 
@@ -96,7 +109,7 @@ class EPUBTranslator:
 
         处理步骤：
         1. 使用extract_epub方法解压epub文件到`os.path.splitext(epub_path)[0]_translated`目录中
-        2. 遍历所有xhtml文件
+        2. 使用find_xhtml_files方法遍历所有xhtml文件，并返回一个包含所有xhtml绝对路径的列表
         3. 使用translate_chapter方法翻译xhtml文件，并修改
         4. 压缩为'os.path.splitext(epub_path)[0]_translated.epub'文件
         """
@@ -119,7 +132,7 @@ class EPUBTranslator:
             for index, chapter_item in enumerate(chapters):
                 self.logger.debug(f"index: {index}, chapter: {chapter_item}")
                 pool.apply_async(self.translate_chapter, (chapter_item, index, total_chapters),
-                                 callback=lambda _: self.update_progress(index + 1, total_chapters))
+                                 callback=lambda _: EPUBTranslator.update_progress(index + 1, total_chapters))
 
             # 等待所有进程完成
             pool.close()
@@ -149,30 +162,62 @@ class ConfigLoader:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     self.config.read_file(f)
             except UnicodeDecodeError:
-                print("Failed to decode the config file. Please check the file encoding.")
+                logging.error("Failed to decode the config file. Please check the file encoding.")
                 # 这里可以选择使用其他编码重试
                 with open(self.config_file, 'r', encoding='gbk') as f:
                     self.config.read_file(f)
 
+    # def get_config(self):
+    #     """获取配置参数"""
+    #     config_data = {
+    #         'gtransapi_suffixes': self.config.get('Translation', 'gtransapi_suffixes', fallback=None),
+    #         'dest_lang': self.config.get('Translation', 'dest_lang', fallback=None),
+    #         'http_proxy': self.config.get('Translation', 'http_proxy', fallback=None),
+    #         'transMode': self.config.getint('Translation', 'transMode', fallback=self.args.transMode),
+    #         'TranslateThreadWorkers': self.config.getint('Translation',
+    #                                                      'TranslateThreadWorkers',
+    #                                                      fallback=self.args.TranslateThreadWorkers),
+    #         'processes': self.config.getint('Translation', 'processes', fallback=self.args.processes),
+    #         'log_file': self.config.get('Logger', 'log_file', fallback=self.args.log_file),
+    #         'log_level': self.config.get('Logger', 'log_level', fallback=self.args.log_level),
+    #         # 'file_paths': self.args.file_paths
+    #         'file_paths': [path.strip() for path in self.config.get('Files',
+    #                                                                 'epub_file_path',
+    #                                                                 fallback=self.args.file_paths).split(',')]
+    #     }
+    #     return config_data
+
     def get_config(self):
         """获取配置参数"""
-        config_data = {
-            'gtransapi_suffixes': self.config.get('Translation', 'gtransapi_suffixes', fallback=None),
-            'dest_lang': self.config.get('Translation', 'dest_lang', fallback=None),
-            'http_proxy': self.config.get('Translation', 'http_proxy', fallback=None),
-            'transMode': self.config.getint('Translation', 'transMode', fallback=self.args.transMode),
-            'TranslateThreadWorkers': self.config.getint('Translation',
-                                                         'TranslateThreadWorkers',
-                                                         fallback=self.args.TranslateThreadWorkers),
-            'processes': self.config.getint('Translation', 'processes', fallback=self.args.processes),
-            'log_file': self.config.get('Logger', 'log_file', fallback=self.args.log_file),
-            'log_level': self.config.get('Logger', 'log_level', fallback=self.args.log_level),
-            # 'file_paths': self.args.file_paths
-            'file_paths': [path.strip() for path in self.config.get('Files',
-                                                                    'epub_file_path',
-                                                                    fallback=self.args.file_paths).split(',')]
-        }
-        return config_data
+        try:
+            config_data = {
+                'gtransapi_suffixes': self.config.get('Translation', 'gtransapi_suffixes', fallback=None),
+                'tags_to_translate': self.config.get('Translation', 'tags_to_translate', fallback=None),
+                'dest_lang': self.config.get('Translation', 'dest_lang', fallback=None),
+                'http_proxy': self.config.get('Translation', 'http_proxy', fallback=None),
+                'transMode': self.config.getint('Translation', 'transMode', fallback=self.args.transMode),
+                'TranslateThreadWorkers': self.config.getint('Translation', 'TranslateThreadWorkers',
+                                                             fallback=self.args.TranslateThreadWorkers),
+                'processes': self.config.getint('Translation', 'processes', fallback=self.args.processes),
+                'log_file': self.config.get('Logger', 'log_file', fallback=self.args.log_file),
+                'log_level': self.config.get('Logger', 'log_level', fallback=self.args.log_level),
+                # 'file_paths': self.args.file_paths
+                'file_paths': [
+                    path.strip() for path in
+                    self.config.get('Files', 'epub_file_path', fallback="").split(',')
+                    if path.strip()
+                ]
+            }
+
+            # 如果需要处理文件路径为原始字符串，可以在这里进行转换
+            config_data['file_paths'] = [r"{}".format(path) for path in config_data['file_paths']]
+
+            # print(f"config_data: {config_data}")
+
+            return config_data
+        except Exception as e:
+            print(f"读取配置时出错: {e}")
+            return None
 
 
 def main():
@@ -190,6 +235,9 @@ def main():
     parser.add_argument('--log_file', type=str, default='app.log', help='日志文件路径（默认: app.log）')
     parser.add_argument('--log_level', type=str, default='INFO', help='Log '
                                                                       'level (DEBUG, INFO, WARNING, ERROR, CRITICAL).')
+    parser.add_argument('--tags_to_translate', type=str,
+                        help='The content of the tags that will be translate'
+                             ' (e.g., "h1,h2,h3,title,p")')
 
     # 首先解析命令行参数
     args = parser.parse_args()
@@ -197,6 +245,8 @@ def main():
     # 读取配置文件
     config_loader = ConfigLoader('config.ini', args)
     config = config_loader.get_config()
+
+
 
     # 检查配置文件中是否包含所有必需参数
     if (config.get('gtransapi_suffixes') and config.get('dest_lang') and
@@ -214,7 +264,10 @@ def main():
         parser.error("缺少必需的参数: --gtransapi_suffixes 和 --dest_lang")
 
     # 使用已存在的Logger类
-    logger = Logger(config['log_file'])
+    # 设置日志级别
+    log_level = getattr(logging, config['log_level'].upper(), logging.DEBUG)
+
+    logger = Logger(log_file=config['log_file'], level=config['log_level'])
 
     # 创建并运行翻译器
     translator = EPUBTranslator(
@@ -225,7 +278,8 @@ def main():
         config['dest_lang'],
         config['transMode'],
         logger,
-        config['TranslateThreadWorkers']  # 确保传递翻译线程工作数
+        config['TranslateThreadWorkers'],  # 确保传递翻译线程工作数
+        config['tags_to_translate']
     )
 
     # 进行翻译

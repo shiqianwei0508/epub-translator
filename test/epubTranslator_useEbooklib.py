@@ -217,7 +217,7 @@ def main():
     args = parser.parse_args()
 
     # 读取配置文件
-    config_loader = ConfigLoader('config.ini', args)
+    config_loader = ConfigLoader('../config.ini', args)
     config = config_loader.get_config()
 
     # 检查配置文件中是否包含所有必需参数

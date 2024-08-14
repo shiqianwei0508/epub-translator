@@ -86,7 +86,8 @@ class Logger:
 
 
 class XHTMLTranslator:
-    def __init__(self, http_proxy, gtransapi_suffixes, dest_lang, transMode=1, TranslateThreadWorkers=16, logger=None):
+    def __init__(self, http_proxy, gtransapi_suffixes, dest_lang, transMode=1, TranslateThreadWorkers=16, logger=None,
+                 tags_to_translate="title,h1,h2,p"):
         # 设置 logger
         self.logger = logger or logging.getLogger(__name__)
         
@@ -98,12 +99,15 @@ class XHTMLTranslator:
         self.gtransapi_suffixes = gtransapi_suffixes.split(',')
         self.gtransapi_suffixes_cycle = cycle(self.gtransapi_suffixes)  # 使用无限循环
 
+        self.tags_to_translate = tags_to_translate.split(',')
+
         self.logger.debug(f"http_proxy: {self.http_proxy}")
         self.logger.debug(f"dest_lang: {self.dest_lang}")
         self.logger.debug(f"TransMode: {self.transMode}")
         self.logger.debug(f"TranslateThreadWorkers: {self.TranslateThreadWorkers}")
         self.logger.debug(f"gtransapi_suffixes: {self.gtransapi_suffixes}")
         self.logger.debug(f"gtransapi_suffixes_cycle: {self.gtransapi_suffixes_cycle}")
+        self.logger.debug(f"tags_to_translate: {self.tags_to_translate}")
 
     def translate_text(self, text):
         """翻译单个文本，支持字符串和字符串列表。"""
@@ -153,13 +157,14 @@ class XHTMLTranslator:
         else:
             raise ValueError("翻译模式错误")  # 抛出翻译模式错误
         
-    def process_xhtml(self, xhtml_content):
+    def process_xhtml(self, xhtml_content, supported_tags):
 
         soup = BeautifulSoup(xhtml_content, 'html.parser')
         self.logger.debug("Starting translation of paragraphs.")
 
         # 支持翻译的标签
-        supported_tags = ["p", "title", "h1", "h2"]
+        # supported_tags = ["p", "title", "h1", "h2"]
+        supported_tags = self.tags_to_translate
         translations = []  # 存储待替换的文本与翻译结果
 
         # 将 soup.descendants 转换为列表，以避免在遍历过程中修改结构
@@ -224,6 +229,9 @@ if __name__ == "__main__":
     parser.add_argument('--log_file', type=str, default='app.log', help='Log file name.')
     parser.add_argument('--log_level', type=str, default='DEBUG', help='Log level '
                                                                        '(DEBUG, INFO, WARNING, ERROR, CRITICAL).')
+    parser.add_argument('--tags_to_translate', type=str, required=True,
+                        help='The content of the tags that will be translate'
+                             ' (e.g., "h1,h2,h3,title,p")')
 
     args = parser.parse_args()
 
