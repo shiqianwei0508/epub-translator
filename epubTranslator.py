@@ -1,6 +1,8 @@
 import fnmatch
 import logging
 import os
+import random
+import time
 import zipfile
 import configparser
 import argparse
@@ -22,12 +24,45 @@ class EPUBTranslator:
         self.translate_thread_workers = translate_thread_workers
         self.tags_to_translate = tags_to_translate
 
+    # @staticmethod
+    # def extract_epub(epub_file, output_dir):
+    #     with zipfile.ZipFile(epub_file, 'r') as zip_ref:
+    #         zip_ref.extractall(output_dir)
+    #     print(f'Extracted {epub_file} to {output_dir}')
+    #     # return output_dir
+
     @staticmethod
     def extract_epub(epub_file, output_dir):
-        with zipfile.ZipFile(epub_file, 'r') as zip_ref:
-            zip_ref.extractall(output_dir)
-        print(f'Extracted {epub_file} to {output_dir}')
-        # return output_dir
+        # 检查输出目录是否存在
+        if os.path.exists(output_dir):
+            # 提示用户确认重建
+            confirm = input(f"The directory '{output_dir}' already exists. Do you want to recreate it? (y/n): ")
+            if confirm.lower() != 'y':
+                logging.info("Operation cancelled by the user.")
+                return  # 用户选择不重建，直接返回
+
+            # 清空现有目录
+            for filename in os.listdir(output_dir):
+                file_path = os.path.join(output_dir, filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)  # 删除文件
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)  # 删除子目录
+
+        # 创建新的输出目录
+        os.makedirs(output_dir, exist_ok=True)  # exist_ok=True，确保如果目录已存在不会抛出异常
+
+        try:
+            with zipfile.ZipFile(epub_file, 'r') as zip_ref:
+                zip_ref.extractall(output_dir)
+            logging.info(f'Extracted {epub_file} to {output_dir}')
+        except FileNotFoundError:
+            logging.error(f'The file {epub_file} does not exist.')
+        except zipfile.BadZipFile:
+            logging.error(f'The file {epub_file} is not a zip file or it is corrupted.')
+        except Exception as e:
+            logging.error(f'An error occurred while extracting {epub_file}: {e}')
+
 
     @staticmethod
     def create_epub_from_directory(input_dir, output_file):
@@ -50,14 +85,6 @@ class EPUBTranslator:
     @staticmethod
     def find_xhtml_files(directory):
         xhtml_files = []
-
-        # # 遍历指定的目录
-        # for dirpath, dirnames, filenames in os.walk(directory):
-        #     for filename in fnmatch.filter(filenames, '*.xhtml'):
-        #         # 构造绝对路径
-        #         absolute_path = os.path.join(dirpath, filename)
-        #         # xhtml_files.append((filename, absolute_path))
-        #         xhtml_files.append(absolute_path)
 
         extensions = ['*.html', '*.xhtml']  # 定义要查找的扩展名列表
 
@@ -128,11 +155,31 @@ class EPUBTranslator:
 
         total_chapters = len(chapters)
 
+        # with multiprocessing.Pool(processes=self.processes) as pool:
+        #     for index, chapter_item in enumerate(chapters):
+        #         self.logger.debug(f"index: {index}, chapter: {chapter_item}")
+        #         pool.apply_async(self.translate_chapter, (chapter_item, index, total_chapters),
+        #                          callback=lambda _: EPUBTranslator.update_progress(index + 1, total_chapters))
+
+        current_progress = multiprocessing.Value('i', 0)  # 共享变量
+
+        def update_progress_callback(_):
+            with current_progress.get_lock():
+                current_progress.value += 1
+                EPUBTranslator.update_progress(current_progress.value, total_chapters)
+
+        def translate_with_delay(chapter_item, index, total):
+            # 翻译章节
+            self.translate_chapter(chapter_item, index, total)
+            # 添加随机等待时间，范围在1到5秒之间
+            wait_time = random.uniform(30, 60)
+            time.sleep(wait_time)
+
         with multiprocessing.Pool(processes=self.processes) as pool:
             for index, chapter_item in enumerate(chapters):
-                self.logger.debug(f"index: {index}, chapter: {chapter_item}")
-                pool.apply_async(self.translate_chapter, (chapter_item, index, total_chapters),
-                                 callback=lambda _: EPUBTranslator.update_progress(index + 1, total_chapters))
+                self.logger.debug(f"Processing chapter: {chapter_item}")
+                pool.apply_async(translate_with_delay, (chapter_item, index, total_chapters),
+                                 callback=update_progress_callback)
 
             # 等待所有进程完成
             pool.close()
@@ -166,26 +213,6 @@ class ConfigLoader:
                 # 这里可以选择使用其他编码重试
                 with open(self.config_file, 'r', encoding='gbk') as f:
                     self.config.read_file(f)
-
-    # def get_config(self):
-    #     """获取配置参数"""
-    #     config_data = {
-    #         'gtransapi_suffixes': self.config.get('Translation', 'gtransapi_suffixes', fallback=None),
-    #         'dest_lang': self.config.get('Translation', 'dest_lang', fallback=None),
-    #         'http_proxy': self.config.get('Translation', 'http_proxy', fallback=None),
-    #         'transMode': self.config.getint('Translation', 'transMode', fallback=self.args.transMode),
-    #         'TranslateThreadWorkers': self.config.getint('Translation',
-    #                                                      'TranslateThreadWorkers',
-    #                                                      fallback=self.args.TranslateThreadWorkers),
-    #         'processes': self.config.getint('Translation', 'processes', fallback=self.args.processes),
-    #         'log_file': self.config.get('Logger', 'log_file', fallback=self.args.log_file),
-    #         'log_level': self.config.get('Logger', 'log_level', fallback=self.args.log_level),
-    #         # 'file_paths': self.args.file_paths
-    #         'file_paths': [path.strip() for path in self.config.get('Files',
-    #                                                                 'epub_file_path',
-    #                                                                 fallback=self.args.file_paths).split(',')]
-    #     }
-    #     return config_data
 
     def get_config(self):
         """获取配置参数"""
