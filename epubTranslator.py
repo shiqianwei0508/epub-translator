@@ -13,50 +13,191 @@ import multiprocessing
 from xhtmlTranslate import XHTMLTranslator, Logger
 
 
-class EPUBTranslator:
-    def __init__(self, file_paths, processes, http_proxy, gtransapi_suffixes, dest_lang,
-                 trans_mode, logger, translate_thread_workers, tags_to_translate):
+class TranslationStatusDB:
+    # 状态常量
+    STATUS_PENDING = 0  # 未开始
+    STATUS_IN_PROGRESS = 1  # 进行中
+    STATUS_COMPLETED = 2  # 完成
+    STATUS_ERROR = 3  # 异常退出
+
+    def __init__(self, db_name='translation_status.db', db_directory='.'):
+        """初始化 TranslationStatusDB 类。
+
+        :param db_name: 数据库文件名（默认 'translation_status.db'）
+        :param db_directory: 数据库文件目录（默认当前目录）
+        """
+        self.db_name = db_name
+        self.db_directory = db_directory
+        self.db_path = os.path.join(db_directory, db_name)
+        # self.create_tables()
+
+    def connect(self):
+        """建立数据库连接"""
+        return sqlite3.connect(self.db_path)
+
+    def create_tables(self):
+        """创建数据表"""
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                # 创建翻译状态表
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS translation_status (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        chapter_path TEXT NOT NULL,
+                        status INTEGER NOT NULL,
+                        error_message TEXT
+                    )
+                ''')
+                # 创建状态描述表
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS status_description (
+                        id INTEGER PRIMARY KEY,
+                        description TEXT NOT NULL
+                    )
+                ''')
+                # 插入状态描述
+                cursor.execute('DELETE FROM status_description')  # 清空表以避免重复插入
+                cursor.executemany('''
+                    INSERT INTO status_description (id, description) VALUES (?, ?)
+                ''', [
+                    (self.STATUS_PENDING, '未开始'),
+                    (self.STATUS_IN_PROGRESS, '进行中'),
+                    (self.STATUS_COMPLETED, '完成'),
+                    (self.STATUS_ERROR, '异常退出')
+                ])
+                connection.commit()
+        except sqlite3.Error as e:
+            print(f"An error occurred while creating tables: {e}")
+
+    def insert_status(self, chapter_path, status, error_message=None):
+        """插入翻译状态
+
+        :param chapter_path: 章节路径
+        :param status: 翻译状态，应为常量
+        :param error_message: 错误信息（可选）
+        """
+        if status not in (self.STATUS_PENDING, self.STATUS_IN_PROGRESS, self.STATUS_COMPLETED, self.STATUS_ERROR):
+            raise ValueError("Invalid status value.")
+
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute('''
+                    INSERT INTO translation_status (chapter_path, status, error_message)
+                    VALUES (?, ?, ?)
+                ''', (chapter_path, status, error_message))
+                connection.commit()
+        except sqlite3.Error as e:
+            print(f"An error occurred while inserting status: {e}")
+
+    def update_status(self, chapter_path, status, error_message=None):
+        """更新翻译状态
+
+        :param chapter_path: 章节路径
+        :param status: 新的翻译状态，应为常量
+        :param error_message: 错误信息（可选）
+        """
+        if status not in (self.STATUS_PENDING, self.STATUS_IN_PROGRESS, self.STATUS_COMPLETED, self.STATUS_ERROR):
+            raise ValueError("Invalid status value.")
+
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute('''
+                    UPDATE translation_status
+                    SET status = ?, error_message = ?
+                    WHERE chapter_path = ?
+                ''', (status, error_message, chapter_path))
+                connection.commit()
+                if cursor.rowcount == 0:
+                    print(f"没有找到章节 '{chapter_path}' 的记录。")
+                else:
+                    print(f"章节 '{chapter_path}' 的翻译状态已更新为 {status}。")
+        except sqlite3.Error as e:
+            print(f"An error occurred while updating status: {e}")
+
+    def get_all_statuses(self):
+        """获取所有翻译状态"""
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute('SELECT * FROM translation_status')
+                rows = cursor.fetchall()
+            return rows
+        except sqlite3.Error as e:
+            print(f"An error occurred while fetching statuses: {e}")
+            return []
+
+    def get_status_by_chapter(self, chapter_path):
+        """根据章节路径获取翻译状态"""
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute('SELECT * FROM translation_status WHERE chapter_path = ?', (chapter_path,))
+                row = cursor.fetchone()
+            return row
+        except sqlite3.Error as e:
+            print(f"An error occurred while fetching status for {chapter_path}: {e}")
+            return None
+
+    def get_status_descriptions(self):
+        """获取所有状态描述"""
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute('SELECT * FROM status_description')
+                rows = cursor.fetchall()
+            return rows
+        except sqlite3.Error as e:
+            print(f"An error occurred while fetching status descriptions: {e}")
+            return []
+
+    def get_chapters_not_completed(self):
+        """获取所有翻译状态不是完成的文章列表"""
+        try:
+            with self.connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute('SELECT chapter_path FROM translation_status WHERE status != ?',
+                               (self.STATUS_COMPLETED,))
+                rows = cursor.fetchall()
+            return [row[0] for row in rows]  # 返回章节路径列表
+        except sqlite3.Error as e:
+            print(f"An error occurred while fetching articles not completed: {e}")
+            return []
+
+    def __repr__(self):
+        return f"<TranslationStatusDB(db_name='{self.db_name}', db_directory='{self.db_directory}')>"
+
+
+class EPUBTranslator(XHTMLTranslator):
+    def __init__(self, file_paths, processes, http_proxy, log_file, log_level, gtransapi_suffixes, dest_lang,
+                 trans_mode, translate_thread_workers, tags_to_translate):
         self.file_paths = file_paths
         self.processes = processes
-        self.http_proxy = http_proxy
-        self.gtransapi_suffixes = gtransapi_suffixes
-        self.dest_lang = dest_lang
-        self.trans_mode = trans_mode
-        self.logger = logger
-        self.translate_thread_workers = translate_thread_workers
-        self.tags_to_translate = tags_to_translate
+        super(EPUBTranslator, self).__init__(http_proxy, gtransapi_suffixes, dest_lang, trans_mode, translate_thread_workers, tags_to_translate)
+        # self.http_proxy = http_proxy
+        # self.gtransapi_suffixes = gtransapi_suffixes
+        # self.dest_lang = dest_lang
+        # self.trans_mode = trans_mode
+        # self.logger = logger
+        # self.translate_thread_workers = translate_thread_workers
+        # self.tags_to_translate = tags_to_translate
 
-    # @staticmethod
-    # def extract_epub(epub_file, output_dir):
-    #     # 检查输出目录是否存在
-    #     if os.path.exists(output_dir):
-    #         # 提示用户确认重建
-    #         confirm = input(f"The directory '{output_dir}' already exists. Do you want to recreate it? (y/n): ")
-    #         if confirm.lower() != 'y':
-    #             logging.info("Operation cancelled by the user.")
-    #             return  # 用户选择不重建，直接返回
-    #
-    #         # 清空现有目录
-    #         for filename in os.listdir(output_dir):
-    #             file_path = os.path.join(output_dir, filename)
-    #             if os.path.isfile(file_path):
-    #                 os.remove(file_path)  # 删除文件
-    #             elif os.path.isdir(file_path):
-    #                 shutil.rmtree(file_path)  # 删除子目录
-    #
-    #     # 创建新的输出目录
-    #     os.makedirs(output_dir, exist_ok=True)  # exist_ok=True，确保如果目录已存在不会抛出异常
-    #
-    #     try:
-    #         with zipfile.ZipFile(epub_file, 'r') as zip_ref:
-    #             zip_ref.extractall(output_dir)
-    #         logging.info(f'Extracted {epub_file} to {output_dir}')
-    #     except FileNotFoundError:
-    #         logging.error(f'The file {epub_file} does not exist.')
-    #     except zipfile.BadZipFile:
-    #         logging.error(f'The file {epub_file} is not a zip file or it is corrupted.')
-    #     except Exception as e:
-    #         logging.error(f'An error occurred while extracting {epub_file}: {e}')
+        # 实例化DB类
+        translate_db = None
+
+        # 实例化日志类
+        self.logger = Logger(log_file=log_file, level=log_level)
+        # self.logger = logging.getLogger(__name__)
+
+    @classmethod
+    def initialize_db(cls, db_name='translation_status.db', db_directory='.'):
+        """
+        初始化数据库，修改类属性translate_db为TranslationStatusDB类的实例化
+        """
+        cls.translate_db = TranslationStatusDB(db_name=db_name, db_directory=db_directory)
+
 
     @staticmethod
     def extract_epub(epub_file, output_dir):
@@ -112,107 +253,41 @@ class EPUBTranslator:
     def translate_chapter(self, chapter_item, chapter_index, total_chapters):
 
         self.logger.debug(f"Starting translation for chapter {chapter_index + 1}/{total_chapters}")
+        EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_IN_PROGRESS)
+
+
         with open(chapter_item, 'r', encoding='utf-8') as file:
             xhtml_content = file.read()
         try:
-            translator = XHTMLTranslator(http_proxy=self.http_proxy, gtransapi_suffixes=self.gtransapi_suffixes,
-                                         dest_lang=self.dest_lang, transMode=self.trans_mode,
-                                        TranslateThreadWorkers=self.translate_thread_workers,
-                                         logger=self.logger, tags_to_translate=self.tags_to_translate)
-            translated_content = translator.process_xhtml(xhtml_content, self.tags_to_translate)
+            translated_content = self.process_xhtml(xhtml_content, self.tags_to_translate)
             if not translated_content.strip():
                 raise ValueError("翻译内容为空")
 
             with open(chapter_item, 'w', encoding='utf-8') as file:
                 file.write(translated_content)
 
+            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_COMPLETE)
             self.logger.debug(f"Finished translation for chapter {chapter_index + 1}/{total_chapters}")
             # return translated_content
         except ValueError as ve:
+            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_ERROR, str(ve))
             self.logger.error(f"Value error for chapter {chapter_index + 1}: {ve}")
             # return "", chapter_item # 返回空内容和chapter路径
         except Exception as e:
+            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_ERROR, str(e))
             self.logger.error(f"Error translating chapter {chapter_index + 1}: {e}")
             # return "", chapter_item # 返回空内容和chapter路径
 
-    def translate_with_delay(self, chapter_item, index, total, db_path):
-        conn = None
-        cursor = None
+    def translate_with_delay(self, chapter_item, index, total):
 
-        try:
-            # 打开数据库链接，记录翻译状态
-            conn = sqlite3.connect(os.path.join(db_path, 'translation_status.db'))
-            cursor = conn.cursor()
+        self.logger.debug(f"Starting translation for chapter {chapter_item} use delay method")
 
-            # 开始翻译
-            cursor.execute('''
-                        UPDATE status SET status = '进行中' WHERE chapter_path = ?
-                    ''', (chapter_item,))
-            conn.commit()
-
-            # 翻译章节
-            self.translate_chapter(chapter_item, index, total)
-
-            # 完成翻译
-            cursor.execute('''
-                        UPDATE status SET status = '已完成' WHERE chapter_path = ?
-                    ''', (chapter_item,))
-            conn.commit()
-        except Exception as e:
-            # 翻译出错
-            if cursor:
-                cursor.execute('''
-                    UPDATE status SET status = '错误', error_message = ? WHERE chapter_path = ?
-                ''', (str(e), chapter_item,))
-                conn.commit()
-
-        finally:
-            # 关闭数据库链接
-            if conn:
-                conn.commit()
-                conn.close()
-
+        # 翻译章节
+        self.translate_chapter(chapter_item, index, total)
         # 添加随机等待时间，范围在1到5秒之间
-        wait_time = random.uniform(10, 30)
+        wait_time = random.uniform(1, 5)
         self.logger.debug(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
         time.sleep(wait_time)
-
-    # def translate_with_delay(self, chapter_item, index, total, db_path):
-    #
-    #     # 记录翻译状态
-    #     try:
-    #         # 打开数据库链接，记录翻译状态
-    #         conn = sqlite3.connect(os.path.join(db_path, 'translation_status.db'))
-    #         cursor = conn.cursor()
-    #         # 开始翻译
-    #         cursor.execute('''
-    #                     UPDATE status SET status = '进行中' WHERE chapter_path = ?
-    #                 ''', (chapter_item,))
-    #         cursor.commit()
-    #
-    #         # 翻译章节
-    #         self.translate_chapter(chapter_item, index, total)
-    #
-    #         # 完成翻译
-    #         cursor.execute('''
-    #                     UPDATE status SET status = '已完成' WHERE chapter_path = ?
-    #                 ''', (chapter_item,))
-    #         cursor.commit()
-    #     except Exception as e:
-    #         # 翻译出错
-    #         cursor.execute('''
-    #                 UPDATE status SET status = '错误', error_message = ? WHERE chapter_path = ?
-    #             ''', (str(e), chapter_item,))
-    #         cursor.commit()
-    #
-    #     # 关闭数据库链接
-    #     conn.commit()
-    #     conn.close()
-    #
-    #     # 添加随机等待时间，范围在1到5秒之间
-    #     wait_time = random.uniform(10, 30)
-    #     self.logger.debug(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
-    #     time.sleep(wait_time)
 
     @staticmethod
     def update_progress(current, total):
@@ -244,7 +319,7 @@ class EPUBTranslator:
             EPUBTranslator.extract_epub(epub_path, tmp_path)
             xhtml_files = EPUBTranslator.find_xhtml_files(tmp_path)
 
-            self.logger.debug(f"xhtml_files: {xhtml_files}")
+            # self.logger.debug(f"xhtml_files: {xhtml_files}")
             self.logger.debug(f"Extracted {len(xhtml_files)} xhtml files")
 
             chapters = xhtml_files
@@ -255,30 +330,21 @@ class EPUBTranslator:
 
             # 创建 SQLite 数据库
             try:
-                translate_conn = sqlite3.connect(os.path.join(tmp_path, 'translation_status.db'))
-                translate_cursor = translate_conn.cursor()
-                translate_cursor.execute('''CREATE TABLE IF NOT EXISTS status(
-                                                            chapter_path TEXT PRIMARY KEY,
-                                                            status TEXT NOT NULL,
-                                                            error_message TEXT
-                                                            )
-                                                        '''
-                                   )
+                self.initialize_db(db_name='translation_status.db',
+                                   db_directory=epub_extracted_path)
+                EPUBTranslator.translate_db.create_tables()
+            except Exception as e:
+                self.logger.error(f"Error Create db : {e}")
 
+            try:
                 # 把所有章节路径写入数据库
                 for chapter_path in chapters:
-                    # conn = sqlite3.connect(os.path.join(tmp_path, 'translation_status.db'))
-                    # cursor = conn.cursor()
                     # 尝试使用 utf-8 编码插入数据
-                    translate_cursor.execute("INSERT INTO status (chapter_path, status) VALUES (?, '未开始')",
-                                   (chapter_path,))
-
-                translate_conn.commit()
-                translate_conn.close()
+                    EPUBTranslator.translate_db.insert_status(chapter_path, EPUBTranslator.translate_db.STATUS_PENDING)
             except Exception as e:
-                self.logger.error(f"Error Create db and status table: {e}")
+                self.logger.error(f"Error insert chapter translation status: {e}")
 
-            logging.info(f'Created SQLite database in {tmp_path}')
+            self.logger.info(f'Created SQLite database in {tmp_path}')
 
         # 检查输出目录是否存在
         if os.path.exists(epub_extracted_path):
@@ -290,39 +356,41 @@ class EPUBTranslator:
                 # 初始化
                 initial_work_dir(epub_extracted_path)
             else:
-                logging.info(f"use the exist Directory and DB")
+                self.logger.info(f"use the exist Directory and DB")
+                self.initialize_db(db_name='translation_status.db',
+                                   db_directory=epub_extracted_path)
+
         else:
-            logging.info(f"extract epub to the Directory and create DB.")
+            self.logger.info(f"extract epub to the Directory and create DB.")
             initial_work_dir(epub_extracted_path)
 
 
-
-
-        conn = sqlite3.connect(os.path.join(epub_extracted_path, 'translation_status.db'))
-        cursor = conn.cursor()
-
-        # 查询所有 status 为 '未开始' 的 chapter_path
-        cursor.execute("SELECT chapter_path FROM status WHERE status = '未开始'")
-        chapters_not_complete = [row[0] for row in cursor.fetchall()]
-
-        conn.commit()
-        conn.close()
+        chapters_not_complete = EPUBTranslator.translate_db.get_chapters_not_completed()
+        self.logger.debug(f"chapters_not_complete: {chapters_not_complete}")
 
         total_chapters = len(chapters_not_complete)
+        self.logger.debug(f"Total chapters: {total_chapters}")
+
 
         current_progress = multiprocessing.Value('i', 0)  # 共享变量
 
         def update_progress_callback(_):
-            with current_progress.get_lock():
-                current_progress.value += 1
-                EPUBTranslator.update_progress(current_progress.value, total_chapters)
+            try:
+                with current_progress.get_lock():
+                    current_progress.value += 1
+                    EPUBTranslator.update_progress(current_progress.value, total_chapters)
+            except Exception as e:
+                self.logger.error(f"Error in update_progress_callback: {e}")
 
         with multiprocessing.Pool(processes=self.processes) as pool:
             for index, chapter_item in enumerate(chapters_not_complete):
                 self.logger.debug(f"Processing chapter: {index} {chapter_item}")
-                pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters, epub_extracted_path),
-                                 callback=update_progress_callback)
-                self.logger.debug(f"Processed chapter: {index} {chapter_item}")
+                try:
+                    pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters),
+                                     callback=update_progress_callback)
+                except Exception as e:
+                    self.logger.error(f"Error in multiprocessing progress: {e}")
+                self.logger.debug(f"Processed chapter: {index} {chapter_item} \n")
 
             # 等待所有进程完成
             pool.close()
@@ -336,7 +404,6 @@ class EPUBTranslator:
     def translate(self):
         for epub_path in self.file_paths:
             self.logger.debug(f"Processing EPUB file: {epub_path}")
-
             self.process_epub(epub_path)
 
 
@@ -437,18 +504,18 @@ def main():
     # 使用已存在的Logger类
     # 设置日志级别
     log_level = getattr(logging, config['log_level'].upper(), logging.DEBUG)
-
-    logger = Logger(log_file=config['log_file'], level=config['log_level'])
+    # logger = Logger(log_file=config['log_file'], level=log_level)
 
     # 创建并运行翻译器
     translator = EPUBTranslator(
         config['file_paths'],
         config['processes'],
         config['http_proxy'],
+        config['log_file'],
+        log_level,
         config['gtransapi_suffixes'],
         config['dest_lang'],
         config['transMode'],
-        logger,
         config['TranslateThreadWorkers'],  # 确保传递翻译线程工作数
         config['tags_to_translate']
     )

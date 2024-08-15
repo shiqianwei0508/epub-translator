@@ -86,10 +86,9 @@ class Logger:
 
 
 class XHTMLTranslator:
-    def __init__(self, http_proxy, gtransapi_suffixes, dest_lang, transMode=1, TranslateThreadWorkers=16, logger=None,
-                 tags_to_translate="title,h1,h2,p"):
+    def __init__(self, http_proxy, gtransapi_suffixes, dest_lang, transMode=1, TranslateThreadWorkers=16, tags_to_translate="title,h1,h2,p"):
         # 设置 logger
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__)
         
         self.http_proxy = http_proxy
         
@@ -194,8 +193,13 @@ class XHTMLTranslator:
                 try:
                     translated_text = future.result()
                     self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
-                    if isinstance(translated_text, dict) and "error" in translated_text:
-                        self.logger.error(f"Failed to translate '{original_text}': {translated_text['error']}")
+                    # if isinstance(translated_text, dict) and "error" in translated_text:
+                    #     self.logger.error(f"Failed to translate '{original_text}': {translated_text['error']}")
+                    #     continue
+
+                    # 如果 translated_text 为空，跳过当前循环
+                    if translated_text is None or translated_text == "":
+                        self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
                         continue
 
                     translations.append((element, translated_text))  # 存储原始元素和翻译结果
@@ -253,9 +257,8 @@ if __name__ == "__main__":
     # Process the XHTML content
     translator = XHTMLTranslator(http_proxy=args.http_proxy, gtransapi_suffixes=args.gtransapi_suffixes,
                                  dest_lang=args.dest_lang, transMode=args.transMode,
-                                 TranslateThreadWorkers=args.TranslateThreadWorkers,
-                                 logger=logger)
-    translated_content = translator.process_xhtml(xhtml_content)
+                                 TranslateThreadWorkers=args.TranslateThreadWorkers)
+    translated_content = translator.process_xhtml(xhtml_content, args.tags_to_translate)
 
     # Write the output to a new file
     base_name, ext = os.path.splitext(args.input_file)
