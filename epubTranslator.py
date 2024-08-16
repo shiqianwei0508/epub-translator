@@ -10,6 +10,9 @@ import zipfile
 import configparser
 import argparse
 import multiprocessing
+import concurrent.futures
+import queue
+import threading
 
 from xhtmlTranslate import XHTMLTranslator, Logger
 from translation_status_db import TranslationStatusDB
@@ -145,14 +148,21 @@ class EPUBTranslator(XHTMLTranslator):
 
         print(f"\nProgress: {progress:.2f}% - Translated {current} of {total} chapters.\n")
 
+    # def listener(self, log_queue):
+    #     """监听进程，负责输出日志"""
+    #     while True:
+    #         log_message = log_queue.get()
+    #         print(f'log_message: {log_message}')
+    #         # self.logger.debug(repr(log_message))  # 使用类的 logger 输出日志
+    #         if log_message is None:  # 用 None 来结束监听
+    #             break
+
     def listener(self, log_queue):
-        """监听进程，负责输出日志"""
         while True:
-            log_message = log_queue.get()
-            print(f'log_message: {log_message}')
-            # self.logger.debug(repr(log_message))  # 使用类的 logger 输出日志
-            if log_message is None:  # 用 None 来结束监听
+            log_entry = log_queue.get()
+            if log_entry == "DONE":
                 break
+            self.logger.debug(repr(log_entry))  # 使用类的 logger 输出日志
 
     def process_epub(self, epub_path):
         """
@@ -216,13 +226,11 @@ class EPUBTranslator(XHTMLTranslator):
                 initial_work_dir(epub_extracted_path)
             else:
                 self.logger.info(f"use the exist Directory and DB")
-                EPUBTranslator.initialize_db(db_name='translation_status.db',
-                                   db_directory=epub_extracted_path)
+                EPUBTranslator.initialize_db(db_name='translation_status.db', db_directory=epub_extracted_path)
 
         else:
             self.logger.info(f"extract epub to the Directory and create DB.")
             initial_work_dir(epub_extracted_path)
-
 
         chapters_not_complete = EPUBTranslator.translate_db.get_chapters_not_completed()
         self.logger.debug(f"chapters_not_complete: {chapters_not_complete}")
@@ -230,40 +238,87 @@ class EPUBTranslator(XHTMLTranslator):
         total_chapters = len(chapters_not_complete)
         self.logger.debug(f"Total chapters: {total_chapters}")
 
-        log_queue = multiprocessing.Queue()  # 创建日志队列
+        # log_queue = multiprocessing.Queue()  # 创建日志队列
+        #
+        # listener_process = multiprocessing.Process(target=self.listener, args=(log_queue,))
+        # listener_process.start()  # 启动监听进程
 
-        listener_process = multiprocessing.Process(target=self.listener, args=(log_queue,))
-        listener_process.start()  # 启动监听进程
+        log_queue = queue.Queue()  # 使用线程安全的队列
+        # 启动监听线程
+        listener_thread = threading.Thread(target=self.listener, args=(log_queue,))
+        listener_thread.start()
 
-        # 多进程共享变量
-        current_progress = multiprocessing.Value('i', 0)
+        # # 多进程
+        # current_progress = multiprocessing.Value('i', 0)
+        #
+        # def update_progress_callback(_):
+        #     try:
+        #         with current_progress.get_lock():
+        #             current_progress.value += 1
+        #             EPUBTranslator.update_progress(current_progress.value, total_chapters)
+        #     except Exception as e:
+        #         self.logger.error(f"Error in update_progress_callback: {e}")
+        #
+        # with multiprocessing.Pool(processes=self.processes) as pool:
+        #     for index, chapter_item in enumerate(chapters_not_complete):
+        #         # self.logger.debug(f"Processing chapter: {index} {chapter_item}")
+        #         log_queue.put(f"Processing chapter: {index} {chapter_item}")
+        #         try:
+        #             pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters, log_queue),
+        #                              callback=update_progress_callback)
+        #         except Exception as e:
+        #             # self.logger.error(f"Error in multiprocessing progress: {e}")
+        #             log_queue.put(f"Error in multiprocessing progress: {e}")
+        #         log_queue.put(f"Processed chapter: {index} {chapter_item} \n")
+        #
+        #     # 等待所有进程完成
+        #     pool.close()
+        #     pool.join()
 
-        def update_progress_callback(_):
-            try:
-                with current_progress.get_lock():
-                    current_progress.value += 1
-                    EPUBTranslator.update_progress(current_progress.value, total_chapters)
-            except Exception as e:
-                self.logger.error(f"Error in update_progress_callback: {e}")
+        # # 单进程处理
+        # for index, chapter_item in enumerate(chapters_not_complete):
+        #     # self.logger.debug(f"Processing chapter: {index} {chapter_item}")
+        #     log_queue.put(f"Processing chapter: {index} {chapter_item}")
+        #     try:
+        #         # 直接调用翻译函数，而不是使用 apply_async
+        #         self.translate_with_delay(chapter_item, index, total_chapters, log_queue)
+        #         # 更新进度
+        #         EPUBTranslator.update_progress(index + 1, total_chapters)
+        #     except Exception as e:
+        #         # self.logger.error(f"Error in single process progress: {e}")
+        #         log_queue.put(f"Error in single process progress: {e}")
+        #
+        #     log_queue.put(f"Processed chapter: {index} {chapter_item} \n")
 
-        with multiprocessing.Pool(processes=self.processes) as pool:
+        # log_queue.put(None)  # 用 None 来结束监听进程
+        # listener_process.join()  # 等待监听进程结束
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.processes) as executor:
+            futures = []
             for index, chapter_item in enumerate(chapters_not_complete):
-                # self.logger.debug(f"Processing chapter: {index} {chapter_item}")
                 log_queue.put(f"Processing chapter: {index} {chapter_item}")
                 try:
-                    pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters, log_queue),
-                                     callback=update_progress_callback)
+                    # 提交任务到线程池
+                    future = executor.submit(self.translate_with_delay, chapter_item, index, total_chapters, log_queue)
+                    futures.append((future, index))  # 保留 future 和索引
                 except Exception as e:
-                    # self.logger.error(f"Error in multiprocessing progress: {e}")
-                    log_queue.put(f"Error in multiprocessing progress: {e}")
-                log_queue.put(f"Processed chapter: {index} {chapter_item} \n")
+                    log_queue.put(f"Error in threading progress: {e}")
 
-            # 等待所有进程完成
-            pool.close()
-            pool.join()
+            # 等待所有线程完成并更新进度
+            for future, index in futures:
+                try:
+                    future.result()  # 等待线程执行完成
+                    EPUBTranslator.update_progress(index + 1, total_chapters)  # 更新进度
+                except Exception as e:
+                    log_queue.put(f"Error in future result: {e}")
 
-        log_queue.put(None)  # 用 None 来结束监听进程
-        listener_process.join()  # 等待监听进程结束
+            # 处理完所有章节
+            for index, chapter_item in enumerate(chapters_not_complete):
+                log_queue.put(f"Processed chapter: {index} {chapter_item}")
+
+        # 结束监听线程
+        log_queue.put("DONE")  # 发送结束信号
+        listener_thread.join()  # 等待监听线程结束
 
         EPUBTranslator.create_epub_from_directory(epub_extracted_path, f"{base_name}_translated.epub")
 
@@ -352,8 +407,6 @@ def main():
     # 读取配置文件
     config_loader = ConfigLoader('config.ini', args)
     config = config_loader.get_config()
-
-
 
     # 检查配置文件中是否包含所有必需参数
     if (config.get('gtransapi_suffixes') and config.get('dest_lang') and

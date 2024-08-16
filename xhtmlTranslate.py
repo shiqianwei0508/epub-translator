@@ -10,9 +10,10 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup, NavigableString
-from google_trans_new import google_translator
+from translation_api.google_trans_new import google_translator
 from itertools import cycle
 from tqdm import tqdm
+
 
 # 定义信号处理函数
 def signal_handler(sig, frame):
@@ -20,7 +21,6 @@ def signal_handler(sig, frame):
     # 执行任何必要的清理操作
     # 例如，可以设置一个标志位来通知线程停止工作
     sys.exit(0)
-
 
 
 class ColoredFormatter(logging.Formatter):
@@ -86,7 +86,8 @@ class Logger:
 
 
 class XHTMLTranslator:
-    def __init__(self, http_proxy, gtransapi_suffixes, dest_lang, transMode=1, TranslateThreadWorkers=16, tags_to_translate="title,h1,h2,p"):
+    def __init__(self, http_proxy, gtransapi_suffixes, dest_lang, transMode=1,
+                 TranslateThreadWorkers=16, tags_to_translate="title,h1,h2,p"):
         # 设置 logger
         self.logger = logging.getLogger(__name__)
         

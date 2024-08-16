@@ -2,7 +2,7 @@
 # author LuShan
 # version : 1.1.9
 import json, requests, random, re
-import time
+# import time
 from urllib.parse import quote
 import urllib3
 import logging
