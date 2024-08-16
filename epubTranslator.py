@@ -9,13 +9,12 @@ import time
 import zipfile
 import configparser
 import argparse
-import multiprocessing
 import concurrent.futures
 import queue
 import threading
 
 from xhtmlTranslate import XHTMLTranslator, Logger
-from translation_status_db import TranslationStatusDB
+from db.translation_status_db import TranslationStatusDB
 
 
 def signal_handler(sig, frame):
