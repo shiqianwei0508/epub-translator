@@ -26,6 +26,8 @@ class TranslationStatusDB:
         # return sqlite3.connect(self.db_path)
         if self.connection is None:
             self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
+            # 设置WAL模式
+            self.connection.execute('PRAGMA journal_mode=WAL')
         return self.connection
 
     def close(self):

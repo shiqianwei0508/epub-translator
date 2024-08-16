@@ -24,6 +24,10 @@ from tqdm import tqdm
 from xhtmlTranslate import XHTMLTranslator, Logger
 from db.translation_status_db import TranslationStatusDB
 
+def contains_chinese(text):
+    # 正则表达式匹配中文字符
+    pattern = re.compile(r'[\u4e00-\u9fff]')
+    return bool(pattern.search(text))
 
 def signal_handler(sig, frame):
     print("程序被中断，正在清理...")
@@ -175,7 +179,7 @@ class EPUBTranslator(XHTMLTranslator):
                 # 检查元素是否包含字母且不只是数字
                 if re.search(r'[a-zA-Z]', element) and not re.match(r'^\d+$', element):
                     need_translate = element.strip()
-                    texts_to_translate.append((element, need_translate))  # 存储原始元素和文本
+                    texts_to_translate.append((element, need_translate))  # 存储原始元素和文本`
 
         # 使用 ThreadPoolExecutor 进行并发翻译
         with ThreadPoolExecutor(max_workers=self.TranslateThreadWorkers) as executor:
@@ -188,21 +192,17 @@ class EPUBTranslator(XHTMLTranslator):
                 element, original_text = future_to_text[future]
                 # time.sleep(random.uniform(0.1, 1))  # 随机等待时间，0.1到1秒
                 self.logger.debug(f"Processing translation for: '{original_text}' (Element: {element})")
-                try:
-                    translated_text = future.result()
-                    self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
 
-                    # 如果 translated_text 为空，直接返回，不再处理此文本
-                    if translated_text is None or translated_text == "":
-                        self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
-                        return {"error": f"Translation error for '{chapter_item}'"}  # 返回错误信息
+                translated_text = future.result()
+                self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
 
-                    translations.append((element, translated_text))  # 存储原始元素和翻译结果
-                    self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
-                except Exception as e:
-                    self.logger.error(f"Translation error for text '{original_text}': {str(e)}")
-                    self.logger.debug(f"Future state: {future}")
-                    self.logger.debug(f"Exception details: {e}", exc_info=True)
+                # 如果 translated_text 为空，直接返回，不再处理此文本
+                if translated_text is None or translated_text == "":
+                    self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
+                    return {"error": f"Translation error for '{chapter_item}'"}  # 返回错误信息
+
+                translations.append((element, translated_text))  # 存储原始元素和翻译结果
+                self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
 
         # 统一替换翻译结果
         for element, translated_text in translations:
@@ -234,12 +234,21 @@ class EPUBTranslator(XHTMLTranslator):
 
         log_queue.put(f"Starting translation for chapter {chapter_item} use delay method")
 
-        # 翻译章节
-        self.translate_chapter(chapter_item)
-        # 添加随机等待时间，范围在1到5秒之间
-        wait_time = random.uniform(1, 5)
-        log_queue.put(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
-        time.sleep(wait_time)
+        # 检测文档是否已翻译
+
+        with open(chapter_item, 'r', encoding='utf-8') as file:
+            chapter_text = file.read()
+
+        if contains_chinese(chapter_text):
+            self.logger.info(f"The chapter {chapter_item} seems to be translated already.")
+            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_COMPLETED)
+        else:
+            # 翻译章节
+            self.translate_chapter(chapter_item)
+            # 添加随机等待时间，范围在1到5秒之间
+            wait_time = random.uniform(1, 5)
+            log_queue.put(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
+            time.sleep(wait_time)
 
     @staticmethod
     def update_progress(current, total):
