@@ -2,6 +2,7 @@ import fnmatch
 import logging
 import os
 import random
+import re
 import shutil
 import signal
 import sys
@@ -12,6 +13,13 @@ import argparse
 import concurrent.futures
 import queue
 import threading
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import cycle
+
+from bs4 import BeautifulSoup, NavigableString
+from translation_api.google_trans_new import google_translator
+from tqdm import tqdm
 
 from xhtmlTranslate import XHTMLTranslator, Logger
 from db.translation_status_db import TranslationStatusDB
@@ -34,6 +42,9 @@ class EPUBTranslator(XHTMLTranslator):
         self.processes = processes
         super(EPUBTranslator, self).__init__(http_proxy, gtransapi_suffixes, dest_lang,
                                              trans_mode, translate_thread_workers, tags_to_translate)
+
+        self.gtransapi_suffixes = gtransapi_suffixes.split(',')
+        self.gtransapi_suffixes_cycle = cycle(self.gtransapi_suffixes)  # 使用无限循环
 
         # 实例化日志类
         self.logger = Logger(log_file=log_file, level=log_level)
@@ -60,8 +71,7 @@ class EPUBTranslator(XHTMLTranslator):
         except Exception as e:
             logging.error(f'An error occurred while extracting {epub_file}: {e}')
 
-    @staticmethod
-    def create_epub_from_directory(input_dir, output_file):
+    def create_epub_from_directory(self, input_dir, output_file):
         # 确保 output_file 是字符串类型
         if isinstance(output_file, bytes):
             output_file = output_file.decode('utf-8')  # 转换为字符串
@@ -84,7 +94,7 @@ class EPUBTranslator(XHTMLTranslator):
                         file_path = file_path.decode('utf-8')  # 转换为字符串
                     # 添加文件到 ZIP
                     zip_ref.write(file_path, os.path.relpath(file_path, input_dir))
-        print(f'Created {output_file} from {input_dir}')
+        self.logger.info(f"Created '{output_file}' from '{input_dir}'")
 
     @staticmethod
     def find_xhtml_files(directory):
@@ -103,39 +113,129 @@ class EPUBTranslator(XHTMLTranslator):
 
         return xhtml_files
 
-    def translate_chapter(self, chapter_item, chapter_index, total_chapters):
+    def translate_text(self, text):
+        """翻译单个文本，支持字符串和字符串列表。"""
+        max_retries = 5
 
-        self.logger.debug(f"Starting translation for chapter {chapter_index + 1}/{total_chapters}")
-        EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_IN_PROGRESS)
+        # 每次请求时都创建获取当前前缀并且创建新的翻译器实例
+        current_suffix = next(self.gtransapi_suffixes_cycle)
+        translatorObj = google_translator(timeout=5, url_suffix=current_suffix,
+                                          proxies={'http': self.http_proxy, 'https': self.http_proxy})
+
+        for attempt in range(max_retries):
+            try:
+                self.logger.debug(f"Translating text: {text} using suffix: {current_suffix}")
+
+                if isinstance(text, str):
+                    result = translatorObj.translate(text, self.dest_lang)
+                    self.logger.debug(f"Translated result: {result}")
+                    return self.format_result(text, result)
+                else:
+                    results = [translatorObj.translate(substr, self.dest_lang) for substr in text]
+                    self.logger.debug(f"Translated results: {results}")
+                    return [self.format_result(substr, result) for substr, result in zip(text, results)]
+            except Exception as e:
+                self.logger.warning(f"Error during translation attempt {attempt + 1}: {e}")
+                wait_time = random.uniform(2, 7)
+                if attempt < 2:
+                    # 前 3 次不修改后缀
+                    self.logger.warning(f"Retrying in {wait_time:.2f} seconds without changing suffix...")
+                else:
+                    # 从第 4 次开始修改后缀并重建实例
+                    current_suffix = next(self.gtransapi_suffixes_cycle)
+                    translatorObj = google_translator(timeout=5, url_suffix=current_suffix,
+                                                      proxies={'http': self.http_proxy, 'https': self.http_proxy})
+                    self.logger.error(f"Retrying in {wait_time:.2f} seconds with new suffix: {current_suffix}...")
+
+                time.sleep(wait_time)
+
+        self.logger.critical("Translation failed after multiple attempts. Returning None.")
+        return None
+
+    def process_xhtml(self, chapter_item, supported_tags):
 
         with open(chapter_item, 'r', encoding='utf-8') as file:
             xhtml_content = file.read()
-        try:
-            translated_content = self.process_xhtml(xhtml_content, self.tags_to_translate)
-            if not translated_content.strip():
-                raise ValueError("翻译内容为空")
 
-            with open(chapter_item, 'w', encoding='utf-8') as file:
-                file.write(translated_content)
+        soup = BeautifulSoup(xhtml_content, 'html.parser')
+        self.logger.debug("Starting translation of paragraphs.")
 
+        # 支持翻译的标签
+        # supported_tags = ["p", "title", "h1", "h2"]
+        supported_tags = self.tags_to_translate
+        translations = []  # 存储待替换的文本与翻译结果
+
+        # 将 soup.descendants 转换为列表，以避免在遍历过程中修改结构
+        descendants = list(soup.descendants)
+
+        # 收集需要翻译的文本和对应的元素
+        texts_to_translate = []
+        for element in descendants:
+            if isinstance(element, NavigableString) and element.strip() and element.parent.name in supported_tags:
+                # 检查元素是否包含字母且不只是数字
+                if re.search(r'[a-zA-Z]', element) and not re.match(r'^\d+$', element):
+                    need_translate = element.strip()
+                    texts_to_translate.append((element, need_translate))  # 存储原始元素和文本
+
+        # 使用 ThreadPoolExecutor 进行并发翻译
+        with ThreadPoolExecutor(max_workers=self.TranslateThreadWorkers) as executor:
+            # 使用 tqdm 显示进度条
+            future_to_text = {executor.submit(self.translate_text, text): (element, text) for element, text in
+                              texts_to_translate}
+            self.logger.debug(f"Total texts to translate: {len(future_to_text)}")
+
+            for future in tqdm(as_completed(future_to_text), total=len(future_to_text), desc=f"Translating the chapter '{chapter_item}'"):
+                element, original_text = future_to_text[future]
+                # time.sleep(random.uniform(0.1, 1))  # 随机等待时间，0.1到1秒
+                self.logger.debug(f"Processing translation for: '{original_text}' (Element: {element})")
+                try:
+                    translated_text = future.result()
+                    self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
+
+                    # 如果 translated_text 为空，直接返回，不再处理此文本
+                    if translated_text is None or translated_text == "":
+                        self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
+                        return {"error": f"Translation error for '{chapter_item}'"}  # 返回错误信息
+
+                    translations.append((element, translated_text))  # 存储原始元素和翻译结果
+                    self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
+                except Exception as e:
+                    self.logger.error(f"Translation error for text '{original_text}': {str(e)}")
+                    self.logger.debug(f"Future state: {future}")
+                    self.logger.debug(f"Exception details: {e}", exc_info=True)
+
+        # 统一替换翻译结果
+        for element, translated_text in translations:
+            element.replace_with(translated_text)
+            self.logger.debug(f"Replaced with translated text: '{translated_text}'")
+
+        self.logger.debug(f"Finished translation of chapter '{chapter_item}'.")
+        with open(chapter_item, 'w', encoding='utf-8') as file:
+            file.write(str(soup))
+        # return str(soup)
+
+    def translate_chapter(self, chapter_item):
+
+        self.logger.info(f"Starting translation for chapter {chapter_item}")
+        EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_IN_PROGRESS)
+
+        # try:
+        translated_result = self.process_xhtml(chapter_item, self.tags_to_translate)
+
+        if isinstance(translated_result, dict) and "error" in translated_result:
+            self.logger.error(f"Failed to translate '{chapter_item}': {translated_result['error']}")
+            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_ERROR,
+                                                      translated_result['error'])
+        else:
             EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_COMPLETED)
-            self.logger.debug(f"Finished translation for chapter {chapter_index + 1}/{total_chapters}")
-            # return translated_content
-        except ValueError as ve:
-            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_ERROR, str(ve))
-            self.logger.error(f"Value error for chapter {chapter_index + 1}: {ve}")
-            # return "", chapter_item # 返回空内容和chapter路径
-        except Exception as e:
-            EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_ERROR, str(e))
-            self.logger.error(f"Error translating chapter {chapter_index + 1}: {e}")
-            # return "", chapter_item # 返回空内容和chapter路径
+            self.logger.info(f"Finished translation for chapter {chapter_item}")
 
-    def translate_with_delay(self, chapter_item, index, total, log_queue):
+    def translate_with_delay(self, chapter_item, index, log_queue):
 
         log_queue.put(f"Starting translation for chapter {chapter_item} use delay method")
 
         # 翻译章节
-        self.translate_chapter(chapter_item, index, total)
+        self.translate_chapter(chapter_item)
         # 添加随机等待时间，范围在1到5秒之间
         wait_time = random.uniform(1, 5)
         log_queue.put(f"Waiting for {wait_time:.2f} seconds after translating chapter {index + 1}")
@@ -146,15 +246,6 @@ class EPUBTranslator(XHTMLTranslator):
         progress = (current / total) * 100
 
         print(f"\nProgress: {progress:.2f}% - Translated {current} of {total} chapters.\n")
-
-    # def listener(self, log_queue):
-    #     """监听进程，负责输出日志"""
-    #     while True:
-    #         log_message = log_queue.get()
-    #         print(f'log_message: {log_message}')
-    #         # self.logger.debug(repr(log_message))  # 使用类的 logger 输出日志
-    #         if log_message is None:  # 用 None 来结束监听
-    #             break
 
     def listener(self, log_queue):
         while True:
@@ -235,7 +326,7 @@ class EPUBTranslator(XHTMLTranslator):
         self.logger.debug(f"chapters_not_complete: {chapters_not_complete}")
 
         total_chapters = len(chapters_not_complete)
-        self.logger.debug(f"Total chapters: {total_chapters}")
+        self.logger.info(f"Total chapters that need to be translate: {total_chapters}")
 
         # log_queue = multiprocessing.Queue()  # 创建日志队列
         #
@@ -298,7 +389,7 @@ class EPUBTranslator(XHTMLTranslator):
                 log_queue.put(f"Processing chapter: {index} {chapter_item}")
                 try:
                     # 提交任务到线程池
-                    future = executor.submit(self.translate_with_delay, chapter_item, index, total_chapters, log_queue)
+                    future = executor.submit(self.translate_with_delay, chapter_item, index, log_queue)
                     futures.append((future, index))  # 保留 future 和索引
                 except Exception as e:
                     log_queue.put(f"Error in threading progress: {e}")
@@ -319,10 +410,31 @@ class EPUBTranslator(XHTMLTranslator):
         log_queue.put("DONE")  # 发送结束信号
         listener_thread.join()  # 等待监听线程结束
 
-        EPUBTranslator.create_epub_from_directory(epub_extracted_path, f"{base_name}_translated.epub")
+        # 再检查一次未翻译章节
+        chapters_not_complete = EPUBTranslator.translate_db.get_chapters_not_completed()
 
-        # 清理临时目录
-        # shutil.rmtree(epub_extracted_path)
+        if len(chapters_not_complete) == 0:
+            self.logger.info(f"恭喜全部章节翻译完成！")
+            self.create_epub_from_directory(epub_extracted_path, f"{base_name}_translated.epub")
+
+            # 清理临时目录
+            try:
+                self.logger.debug(f"开始清理临时目录")
+
+                # 关闭数据库链接
+                EPUBTranslator.translate_db.close()
+
+                # 删除目录
+                shutil.rmtree(epub_extracted_path)
+                self.logger.debug(f"清理完成")
+            except Exception as e:
+                self.logger.error(f"临时目录清理异常: {e}")
+        else:
+            self.logger.critical(f"还有{len(chapters_not_complete)}个章节，没有翻译或者存在异常")
+            self.logger.critical(f"没有翻译的章节是 {chapters_not_complete}")
+            self.logger.critical(f"请切换代理服务器，然后，重新执行 python epubTranslator.py")
+            self.logger.critical(f"本程序将会重新读取未翻译章节，直到全部翻译完成！")
+            self.logger.critical(f"注意： 下次启动之后，会询问你是否删除目录，如果不想从头翻译的话，请选择'n'！")
 
     def translate(self):
         for epub_path in self.file_paths:

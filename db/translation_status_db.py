@@ -19,10 +19,20 @@ class TranslationStatusDB:
         self.db_directory = db_directory
         self.db_path = os.path.join(db_directory, db_name)
         # self.create_tables()
+        self.connection = None
 
     def connect(self):
         """建立数据库连接"""
-        return sqlite3.connect(self.db_path)
+        # return sqlite3.connect(self.db_path)
+        if self.connection is None:
+            self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
+        return self.connection
+
+    def close(self):
+        """关闭数据库连接"""
+        if self.connection:
+            self.connection.close()
+            self.connection = None  # 清空连接
 
     def create_tables(self):
         """创建数据表"""
@@ -80,6 +90,32 @@ class TranslationStatusDB:
         except sqlite3.Error as e:
             print(f"An error occurred while inserting status: {e}")
 
+    # def update_status(self, chapter_path, status, error_message=None):
+    #     """更新翻译状态
+    #
+    #     :param chapter_path: 章节路径
+    #     :param status: 新的翻译状态，应为常量
+    #     :param error_message: 错误信息（可选）
+    #     """
+    #     if status not in (self.STATUS_PENDING, self.STATUS_IN_PROGRESS, self.STATUS_COMPLETED, self.STATUS_ERROR):
+    #         raise ValueError("Invalid status value.")
+    #
+    #     try:
+    #         with self.connect() as connection:
+    #             cursor = connection.cursor()
+    #             cursor.execute('''
+    #                 UPDATE translation_status
+    #                 SET status = ?, error_message = ?
+    #                 WHERE chapter_path = ?
+    #             ''', (status, error_message, chapter_path))
+    #             connection.commit()
+    #             if cursor.rowcount == 0:
+    #                 print(f"没有找到章节 '{chapter_path}' 的记录。")
+    #             else:
+    #                 print(f"章节 '{chapter_path}' 的翻译状态已更新为 {status}。")
+    #     except sqlite3.Error as e:
+    #         print(f"An error occurred while updating status: {e}")
+
     def update_status(self, chapter_path, status, error_message=None):
         """更新翻译状态
 
@@ -102,7 +138,11 @@ class TranslationStatusDB:
                 if cursor.rowcount == 0:
                     print(f"没有找到章节 '{chapter_path}' 的记录。")
                 else:
-                    print(f"章节 '{chapter_path}' 的翻译状态已更新为 {status}。")
+                    # 查询状态描述
+                    cursor.execute('SELECT description FROM status_description WHERE id = ?', (status,))
+                    status_description_row = cursor.fetchone()
+                    status_description = status_description_row[0] if status_description_row else '未知状态'
+                    print(f"章节 '{chapter_path}' 的翻译状态已更新为 '{status_description}'。")
         except sqlite3.Error as e:
             print(f"An error occurred while updating status: {e}")
 

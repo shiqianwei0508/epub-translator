@@ -194,17 +194,17 @@ class XHTMLTranslator:
                 try:
                     translated_text = future.result()
                     self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
-                    # if isinstance(translated_text, dict) and "error" in translated_text:
-                    #     self.logger.error(f"Failed to translate '{original_text}': {translated_text['error']}")
-                    #     continue
-
-                    # 如果 translated_text 为空，跳过当前循环
-                    if translated_text is None or translated_text == "":
-                        self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
+                    if isinstance(translated_text, dict) and "error" in translated_text:
+                        self.logger.error(f"Failed to translate '{original_text}': {translated_text['error']}")
                         continue
 
+                    # # 如果 translated_text 为空，跳过当前循环
+                    # if translated_text is None or translated_text == "":
+                    #     self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
+                    #     continue
+
                     translations.append((element, translated_text))  # 存储原始元素和翻译结果
-                    self.logger.info(f"Successfully translated '{original_text}' to '{translated_text}'")
+                    self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
                 except Exception as e:
                     self.logger.error(f"Translation error for text '{original_text}': {str(e)}")
                     self.logger.debug(f"Future state: {future}")
