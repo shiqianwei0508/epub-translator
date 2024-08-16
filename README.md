@@ -1,6 +1,3 @@
-![Python Version][python-shield]
-[![MIT License][license-shield]][license-url]
-
 # EPUB Translator 文档
 
 ## 介绍
