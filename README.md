@@ -1,142 +1,115 @@
 ![Python Version][python-shield]
 [![MIT License][license-shield]][license-url]
 
-<br />
-<p align="center">
-    <img src="images/logo.png" alt="Logo" width="200" height="200"></img>
+# EPUB Translator 文档
 
-  <h2 align="center">epub-translator</h2>
+## 介绍
 
-  <p align="center">
-    A tool for translating epub files to different languages using the Google Translate, with support for custom dictionaries.
-    <br />
-    <br />
-    <a href="https://rebrand.ly/epub-translator">Download</a>
-    ·
-    <a href="#screenshots">Screenshots</a>
-    ·
-    <a href="#script-usage">Script Usage</a>
-  </p>
-</p>
+EPUB Translator 是一个用于翻译 EPUB 文件的工具，能够提取、翻译章节内容，并将翻译后的内容重新打包成 EPUB 文件。该工具支持多线程和多进程处理，提升翻译效率，并提供详细的日志记录功能。
 
-<!-- TABLE OF CONTENTS -->
-## Table of Contents
+## 功能
 
-- [Table of Contents](#table-of-contents)
-- [About The Project](#about-the-project)
-  - [Features](#features)
-- [Getting Started](#getting-started)
-  - [Custom Dictionary Usage](#custom-dictionary-usage)
-  - [Prerequisites](#prerequisites)
-    - [Script Usage](#script-usage)
-  - [Notes](#notes)
-- [Screenshots](#screenshots)
-- [Issues](#issues)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+- 解压 EPUB 文件并提取 XHTML 文件。
+- 通过翻译 API 翻译章节内容。
+- 将翻译后的内容重新打包成 EPUB 文件。
+- 支持多线程和多进程以提高性能。
+- 日志记录功能，记录翻译过程中的信息和错误。
 
-<!-- ABOUT THE PROJECT -->
-## About The Project
+## 安装
 
-A tool for translating epub files to different languages using the Google Translate, with support for custom dictionaries.
+### 依赖项
 
-### Features
-* Autodetect source languages and support multiple destination languages.
-* Keeping the structure of the original epub file (images, table of contents, text style,...)
-* Support custom translation dictionaries (after translated).
-* Support multiprocessing to speed up.
-* Auto checking the new tool version.
+- Python 3.6 及以上版本。
 
-<!-- GETTING STARTED -->
-## Getting Started
+### 克隆项目
 
-Download the execution file below. Run and follow the instructions.
-
-**Windows**: [epub-translator.exe ~ 12MB](https://rebrand.ly/epub-translator)
-
-### Custom Dictionary Usage
-The custom dictionary will replace the original translated text by Google Translate with your own text.
-* The custom dictionary is a `.txt` file with line by line in the format:  
-`[original_translated_text]:[your_translated_text]`
-* Text is case sensitive with special characters (except colon) and spaces are are allowed, separated from the other by the single colon `:`.
-
-### Prerequisites
-
-* python3
-* google_trans_new
-* requests
-* bs4
-* lxml
-* tqdm
-```sh
-pip install google_trans_new requests bs4 lxml tqdm
+```bash
+git clone https://github.com/shiqianwei0508/epub-translator.git
+cd epub-translator
 ```
-or
-```sh
+
+### 安装依赖
+
+```bash
 pip install -r requirements.txt
 ```
-**Important**
-* To deal with the `json.decoder.JSONDecodeError`: https://github.com/lushan88a/google_trans_new/issues/36
 
+## 使用说明
 
-#### Script Usage
+### 命令行参数
 
-```text
-usage: epub-translator.py [-h] [-v] [-l dest_lang] [-d dict_path] epub_file_path
+运行 EPUB Translator 时，可以使用以下命令行参数：
 
-A tool for translating epub files to different languages 
-using the Google Translate, with support for custom dictionaries.
-
-positional arguments:
-  epub_file_path        path to the epub file
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --version         show program's version number and exit
-  -l dest_lang, --lang dest_lang
-                        destination language
-  -d dict_path, --dict dict_path
-                        path to the translation dictionary
+```bash
+python epub_translator.py [EPUB 文件路径] [OPTIONS]
 ```
-### Notes
-* The translated epub file will be named `[original_file]_translated.epub` and located in the same folder as the original epub file.
-* Suported destination languages are shown in `LANGUAGES` variable in the `epub-translator.py` file.
-* This tool uses autodetect source languages when translating. If you have a problem with it, contact me and maybe I will add the manual select source languages.
 
-## Screenshots
-![Demo](images/screenshot.png)
+#### 必需参数
 
-<!-- ISSUES -->
-## Issues
+- `file_paths`: 一个或多个 EPUB 文件的路径。
 
-* I only tested the tool on some of my favorite books and light novels. 
-* This tool may be buggy. Some books may crash with complex epub structure or some of the text will not be translated.
-* Sometimes, too many translation requests to the Google Translate may cause Google to ban your IP from getting its translation service shortly. If this happens, you should change your IP via VPN.
+#### 可选参数
 
-<!-- CONTRIBUTING -->
-## Contributing
+- `--http_proxy`: HTTP 代理（例如：http://your.proxy:port）。
+- `--gtransapi_suffixes`: API 后缀的逗号分隔列表（例如："com,com.tw,co.jp,com.hk"）。
+- `--dest_lang`: 目标语言（例如：zh-cn）。
+- `--transMode`: 翻译模式，1 表示仅翻译文本，2 表示返回原文和翻译文本（默认 1）。
+- `--TranslateThreadWorkers`: 翻译线程工作数（默认 16）。
+- `--processes`: EPUB 章节并行处理进程数（默认 4）。
+- `--log_file`: 日志文件路径（默认: app.log）。
+- `--log_level`: 日志级别（DEBUG, INFO, WARNING, ERROR, CRITICAL）。
+- `--tags_to_translate`: 需要翻译的标签内容（例如："h1,h2,h3,title,p"）。
 
-Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+### 示例
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+```bash
+python epub_translator.py my_book.epub --http_proxy http://your.proxy:port --gtransapi_suffixes com,com.tw --dest_lang zh-cn
+```
 
-<!-- LICENSE -->
-## License
+### 配置文件
 
-Distributed under the MIT License. See [LICENSE][license-url] for more information.
+您还可以使用 `config.ini` 配置文件来指定参数。配置文件的格式如下：
 
-<!-- CONTACT -->
-## Contact
+```ini
+[Translation]
+gtransapi_suffixes = com,com.tw,co.jp,com.hk
+tags_to_translate = h1,h2,h3,title,p
+dest_lang = zh-cn
+http_proxy = http://your.proxy:port
+transMode = 1
+TranslateThreadWorkers = 16
+processes = 4
 
-* **Author** - [@quantrancse](https://quantrancse.github.io)
+[Logger]
+log_file = app.log
+log_level = INFO
 
-<!-- MARKDOWN LINKS & IMAGES -->
-[python-shield]: https://img.shields.io/badge/python-3.9.6-brightgreen?style=flat-square
-[license-shield]: https://img.shields.io/github/license/quantrancse/epub-translator?style=flat-square
-[license-url]: https://github.com/quantrancse/epub-translator/blob/master/LICENSE
+[Files]
+epub_file_path = path/to/your.epub
+```
 
+## 代码结构
+
+- `EPUBTranslator`: 主要翻译逻辑的实现，包括 EPUB 文件的处理和翻译功能。
+- `ConfigLoader`: 加载配置文件的类，用于读取命令行参数和配置文件中的参数。
+- `main()`: 主程序入口，处理命令行参数、加载配置并启动翻译器。
+
+## 日志
+
+日志会记录在指定的日志文件中，您可以通过调整 `log_level` 参数来控制日志的详细程度。
+
+## 信号处理
+
+该工具支持 SIGINT 信号处理，您可以通过按 `Ctrl+C` 中断程序，程序将进行清理操作并退出。
+
+## 贡献
+
+欢迎任何形式的贡献！请通过提交问题（issues）或拉取请求（pull requests）来参与。
+
+## 许可证
+
+该项目遵循 MIT 许可证，请查看 LICENSE 文件以获取更多信息。
+
+## 联系信息
+
+如需更多帮助或信息，请联系 [sqwei2012@gmail.com]。
