@@ -36,7 +36,22 @@ class ClashOperator:
         except requests.exceptions.RequestException as e:
             logging.error("切换代理节点失败: %s", e)
 
+    def switch_proxy_in_use(self, group_name):
+        payload = {"name": group_name}
+        try:
+            response = requests.put(f"{self.api_url}/proxies/%F0%9F%9A%80%20%E8%8A%82%E7%82%B9%E9%80%89%E6%8B%A9", json=payload,
+                                     headers={'Authorization': f"Bearer {self.api_token}"})
+            response.raise_for_status()
+
+            logging.info(f"成功把流量切换到代理组: '{group_name}'")
+
+        except requests.exceptions.RequestException as e:
+            logging.error("把流量切换到代理组: %s", e)
+
     def cycle_proxies(self):
+        """首先切换流量到代理组，然后循环切换代理组中的节点"""
+
+        self.switch_proxy_in_use(self.group_name)
         group = self.get_proxy_group()
         if group:
             proxies = group.get('all', [])
