@@ -19,13 +19,25 @@ class TranslationStatusDB:
         self.db_directory = db_directory
         self.db_path = os.path.join(db_directory, db_name)
         # self.create_tables()
+        # self.connection = None
 
     def connect(self):
         """建立数据库连接"""
+        # if self.connection is None:
+        #     self.connection = sqlite3.connect(self.db_path)
+        #     # 设置WAL模式
+        #     self.connection.execute('PRAGMA journal_mode=WAL')
+        # return self.connection
         conn = sqlite3.connect(self.db_path)
         # 设置WAL模式
         conn.execute('PRAGMA journal_mode=WAL')
         return conn
+
+    # def close(self):
+    #     """关闭数据库连接"""
+    #     if self.connection:
+    #         self.connection.close()
+    #         self.connection = None  # 清空连接
 
     def create_tables(self):
         """创建数据表"""

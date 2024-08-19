@@ -429,7 +429,7 @@ class EPUBTranslator(XHTMLTranslator):
                 self.logger.debug(f"开始清理临时目录")
 
                 # 关闭数据库链接
-                EPUBTranslator.translate_db.close()
+                # EPUBTranslator.translate_db.close()
 
                 # 删除目录
                 shutil.rmtree(epub_extracted_path)
