@@ -23,7 +23,7 @@ from tqdm import tqdm
 
 from xhtmlTranslate import XHTMLTranslator, Logger
 from db.translation_status_db import TranslationStatusDB
-from languageDetect import detect_language
+from languageDetect import contains_language
 
 
 def signal_handler(sig, frame):
@@ -237,8 +237,7 @@ class EPUBTranslator(XHTMLTranslator):
         with open(chapter_item, 'r', encoding='utf-8') as file:
             chapter_text = file.read()
 
-        # if contains_chinese(chapter_text):
-        if detect_language(chapter_text) == self.dest_lang:
+        if contains_language(chapter_text, self.dest_lang):
             self.logger.info(f"The chapter {chapter_item} seems to be translated already.")
             EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_COMPLETED)
         else:
