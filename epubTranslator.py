@@ -23,11 +23,8 @@ from tqdm import tqdm
 
 from xhtmlTranslate import XHTMLTranslator, Logger
 from db.translation_status_db import TranslationStatusDB
+from languageDetect import detect_language
 
-def contains_chinese(text):
-    # 正则表达式匹配中文字符
-    pattern = re.compile(r'[\u4e00-\u9fff]')
-    return bool(pattern.search(text))
 
 def signal_handler(sig, frame):
     print("程序被中断，正在清理...")
@@ -188,7 +185,8 @@ class EPUBTranslator(XHTMLTranslator):
                               texts_to_translate}
             self.logger.debug(f"Total texts to translate: {len(future_to_text)}")
 
-            for future in tqdm(as_completed(future_to_text), total=len(future_to_text), desc=f"Translating the chapter '{chapter_item}'"):
+            for future in tqdm(as_completed(future_to_text), total=len(future_to_text),
+                               desc=f"Translating the chapter '{chapter_item}'"):
                 element, original_text = future_to_text[future]
                 # time.sleep(random.uniform(0.1, 1))  # 随机等待时间，0.1到1秒
                 self.logger.debug(f"Processing translation for: '{original_text}' (Element: {element})")
@@ -239,7 +237,8 @@ class EPUBTranslator(XHTMLTranslator):
         with open(chapter_item, 'r', encoding='utf-8') as file:
             chapter_text = file.read()
 
-        if contains_chinese(chapter_text):
+        # if contains_chinese(chapter_text):
+        if detect_language(chapter_text) == self.dest_lang:
             self.logger.info(f"The chapter {chapter_item} seems to be translated already.")
             EPUBTranslator.translate_db.update_status(chapter_item, EPUBTranslator.translate_db.STATUS_COMPLETED)
         else:
@@ -301,16 +300,16 @@ class EPUBTranslator(XHTMLTranslator):
                 self.initialize_db(db_name='translation_status.db',
                                    db_directory=epub_extracted_path)
                 EPUBTranslator.translate_db.create_tables()
-            except Exception as e:
-                self.logger.error(f"Error Create db : {e}")
+            except Exception as db_e:
+                self.logger.error(f"Error Create db : {db_e}")
 
             try:
                 # 把所有章节路径写入数据库
                 for chapter_path in chapters:
                     # 尝试使用 utf-8 编码插入数据
                     EPUBTranslator.translate_db.insert_status(chapter_path, EPUBTranslator.translate_db.STATUS_PENDING)
-            except Exception as e:
-                self.logger.error(f"Error insert chapter translation status: {e}")
+            except Exception as db_e:
+                self.logger.error(f"Error insert chapter translation status: {db_e}")
 
             self.logger.info(f'Created SQLite database in {tmp_path}')
 
