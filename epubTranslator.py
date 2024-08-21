@@ -314,16 +314,18 @@ class EPUBTranslator(XHTMLTranslator):
 
         # 检查输出目录是否存在
         if os.path.exists(epub_extracted_path):
-            # 提示用户确认是否删除
-            confirm = input(f"The directory '{epub_extracted_path}' already exists. Do you want to delete it? (y/n): ")
-            if confirm.lower() == 'y':
-                shutil.rmtree(epub_extracted_path)  # 直接删除目录及其所有内容
-
-                # 初始化
-                initial_work_dir(epub_extracted_path)
-            else:
-                self.logger.info(f"use the exist Directory and DB")
-                EPUBTranslator.initialize_db(db_name='translation_status.db', db_directory=epub_extracted_path)
+            # # 提示用户确认是否删除
+            # confirm = input(f"The directory '{epub_extracted_path}' already exists. Do you want to delete it? (y/n): ")
+            # if confirm.lower() == 'y':
+            #     shutil.rmtree(epub_extracted_path)  # 直接删除目录及其所有内容
+            #
+            #     # 初始化
+            #     initial_work_dir(epub_extracted_path)
+            # else:
+            #     self.logger.info(f"use the exist Directory and DB")
+            #     EPUBTranslator.initialize_db(db_name='translation_status.db', db_directory=epub_extracted_path)
+            self.logger.info(f"use the exist Directory and DB")
+            EPUBTranslator.initialize_db(db_name='translation_status.db', db_directory=epub_extracted_path)
 
         else:
             self.logger.info(f"extract epub to the Directory and create DB.")
@@ -429,7 +431,7 @@ class EPUBTranslator(XHTMLTranslator):
                 self.logger.debug(f"开始清理临时目录")
 
                 # 关闭数据库链接
-                # EPUBTranslator.translate_db.close()
+                EPUBTranslator.translate_db.close_all_connections()
 
                 # 删除目录
                 shutil.rmtree(epub_extracted_path)

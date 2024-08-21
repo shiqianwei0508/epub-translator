@@ -20,6 +20,7 @@ class TranslationStatusDB:
         self.db_path = os.path.join(db_directory, db_name)
         # self.create_tables()
         # self.connection = None
+        self.connections = []  # 新增一个列表来存储所有数据库连接
 
     def connect(self):
         """建立数据库连接"""
@@ -31,7 +32,17 @@ class TranslationStatusDB:
         conn = sqlite3.connect(self.db_path)
         # 设置WAL模式
         conn.execute('PRAGMA journal_mode=WAL')
+        self.connections.append(conn)  # 将新连接添加到连接列表
         return conn
+
+    def close_all_connections(self):
+        """关闭所有数据库连接"""
+        for conn in self.connections:
+            try:
+                conn.close()  # 关闭连接
+            except sqlite3.Error as e:
+                print(f"An error occurred while closing a connection: {e}")
+        self.connections = []  # 清空连接列表
 
     # def close(self):
     #     """关闭数据库连接"""
