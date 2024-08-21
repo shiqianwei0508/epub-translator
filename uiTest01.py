@@ -3,7 +3,7 @@ from tkinter import filedialog, messagebox  # 导入文件对话框和消息框�
 from tkinter.ttk import Progressbar, Label, Entry, Button, Checkbutton, Radiobutton, Frame  # 导入ttk组件
 import logging  # 导入logging模块以记录日志
 import threading  # 导入threading模块以支持多线程
-import time  # 用于模拟翻译过程中的时间延迟
+# import time  # 用于模拟翻译过程中的时间延迟
 import queue  # 导入queue模块用于线程间通信
 
 from epubTranslator import EPUBTranslator  # 导入EPUBTranslator类

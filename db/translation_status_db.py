@@ -29,7 +29,7 @@ class TranslationStatusDB:
         #     # 设置WAL模式
         #     self.connection.execute('PRAGMA journal_mode=WAL')
         # return self.connection
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         # 设置WAL模式
         conn.execute('PRAGMA journal_mode=WAL')
         self.connections.append(conn)  # 将新连接添加到连接列表
