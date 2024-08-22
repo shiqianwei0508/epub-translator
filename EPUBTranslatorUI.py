@@ -12,6 +12,7 @@ class EPUBTranslatorUI:
     def __init__(self, master):
         self.master = master  # 设置主窗口
         self.master.title("EPUB Translator")  # 设置窗口标题
+        self.master.iconbitmap('static/pictures/favicon.ico')  #设置logo
         self.create_widgets()  # 创建窗口小部件
         self.translation_thread = None  # 初始化翻译线程
         self.queue = queue.Queue()  # 初始化队列用于线程间通信

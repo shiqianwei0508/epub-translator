@@ -99,6 +99,12 @@ epub_file_path = path/to/your.epub
 
 该工具支持 SIGINT 信号处理，您可以通过按 `Ctrl+C` 中断程序，程序将进行清理操作并退出。
 
+## exe打包
+
+```powershell
+python -m nuitka --follow-imports --standalone --enable-plugin=tk-inter --include-data-file=static/pictures/favicon.ico=static/pictures/favicon.ico .\EPUBTranslatorUI.py
+```
+
 ## 贡献
 
 欢迎任何形式的贡献！请通过提交问题（issues）或拉取请求（pull requests）来参与。
