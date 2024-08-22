@@ -3,16 +3,16 @@ from tkinter import filedialog, messagebox  # 导入文件对话框和消息框�
 from tkinter.ttk import Progressbar, Label, Entry, Button, Checkbutton, Radiobutton, Frame  # 导入ttk组件
 import logging  # 导入logging模块以记录日志
 import threading  # 导入threading模块以支持多线程
-# import time  # 用于模拟翻译过程中的时间延迟
 import queue  # 导入queue模块用于线程间通信
 
 from epubTranslator import EPUBTranslator  # 导入EPUBTranslator类
+
 
 class EPUBTranslatorUI:
     def __init__(self, master):
         self.master = master  # 设置主窗口
         self.master.title("EPUB Translator")  # 设置窗口标题
-        self.master.iconbitmap('static/pictures/favicon.ico')  #设置logo
+        self.master.iconbitmap('static/pictures/favicon.ico')   # 设置logo
         self.create_widgets()  # 创建窗口小部件
         self.translation_thread = None  # 初始化翻译线程
         self.queue = queue.Queue()  # 初始化队列用于线程间通信
@@ -27,10 +27,6 @@ class EPUBTranslatorUI:
         self.select_files_button = Button(self.master, text="选择文件", command=self.select_files)  # 按钮
         self.select_files_button.grid(row=0, column=2)  # 按钮的布局
 
-        # Label(self.master, text="HTTP 代理:").grid(row=1, column=0, sticky="w")  # 标签
-        # self.http_proxy_entry = Entry(self.master, width=50)  # 输入框
-        # self.http_proxy_entry.grid(row=1, column=1)  # 输入框的布局
-
         # 修改HTTP代理的布局，使其更紧凑
         Label(self.master, text="HTTP 代理 - IP地址:").grid(row=1, column=0, sticky="w")  # 标签
         self.proxy_ip_entry = Entry(self.master, width=20)  # 输入框，用于输入IP地址
@@ -39,8 +35,6 @@ class EPUBTranslatorUI:
         Label(self.master, text="端口:").grid(row=1, column=2, sticky="w")  # 标签
         self.proxy_port_entry = Entry(self.master, width=10)  # 输入框，用于输入端口
         self.proxy_port_entry.grid(row=1, column=3, sticky="w", padx=(0, 20))  # 布局端口输入框
-
-
 
         Label(self.master, text="要使用的API后缀:").grid(row=2, column=0, sticky="w")  # 标签
         self.api_suffixes = ["com", "com.hk", "com.tw", "co.jp", "com.sg", "co.uk"]  # 标签列表
@@ -52,20 +46,13 @@ class EPUBTranslatorUI:
 
         # 创建复选框
         for i, api_suffix in enumerate(self.api_suffixes):
-            Checkbutton(api_suffixes_frame, text=api_suffix, variable=self.api_suffix_vars[api_suffix]).grid(row=i,
-                                                                                                                sticky="w")  # 布局复选框
-
-        # Label(self.master, text="目标语言:").grid(row=4, column=0, sticky="w")  # 标签
-        # self.dest_lang_entry = Entry(self.master, width=50)  # 输入框
-        # self.dest_lang_entry.grid(row=4, column=1)  # 输入框的布局
+            Checkbutton(api_suffixes_frame, text=api_suffix, variable=self.api_suffix_vars[api_suffix]).grid(row=i, sticky="w")  # 布局复选框
 
         Label(self.master, text="目标语言:").grid(row=4, column=0, sticky="w")  # 标签
         # 创建目标语言单选按钮
         self.dest_lang_var = tk.StringVar(value="en")  # 默认值为英文
-        Radiobutton(self.master, text="英文", variable=self.dest_lang_var, value="en").grid(row=4, column=1,
-                                                                                            sticky="w")  # 英文单选按钮
-        Radiobutton(self.master, text="中文", variable=self.dest_lang_var, value="zh-cn").grid(row=4, column=2,
-                                                                                               sticky="w")  # 中文单选按钮
+        Radiobutton(self.master, text="英文", variable=self.dest_lang_var, value="en").grid(row=4, column=1, sticky="w")  # 英文单选按钮
+        Radiobutton(self.master, text="中文", variable=self.dest_lang_var, value="zh-cn").grid(row=4, column=2, sticky="w")  # 中文单选按钮
 
         # 添加翻译模式单选按钮
         self.trans_mode_var = tk.IntVar(value=1)  # 默认值为1
@@ -169,8 +156,6 @@ class EPUBTranslatorUI:
         # 获取输入框的内容
         epub_paths = self.epub_path_entry.get().split(",")  # 获取EPUB文件路径并分割
 
-        # http_proxy = self.http_proxy_entry.get()  # 获取HTTP代理
-
         # 获取HTTP代理IP和端口，并组合成"http://IP:端口"格式
         proxy_ip = self.proxy_ip_entry.get()  # 获取HTTP代理的IP地址
         proxy_port = self.proxy_port_entry.get()  # 获取HTTP代理的端口
@@ -180,7 +165,6 @@ class EPUBTranslatorUI:
                                  var.get()]  # 获取选中的API后缀
         api_suffixes_use = ",".join(api_suffixes_use_list)  # 以逗号分隔的字符串
 
-        # dest_lang = self.dest_lang_entry.get()  # 获取目标语言
         dest_lang = self.dest_lang_var.get()  # 获取目标语言（现在是单选框的值）
 
         trans_mode = self.trans_mode_var.get()  # 获取翻译模式（1或2）
@@ -231,8 +215,7 @@ class EPUBTranslatorUI:
         self.master.update_idletasks()  # 更新界面
 
 
-
-    # 创建主窗口
+# 创建主窗口
 if __name__ == "__main__":
     root = tk.Tk()  # 创建主窗口
     app = EPUBTranslatorUI(root)  # 初始化应用程序
