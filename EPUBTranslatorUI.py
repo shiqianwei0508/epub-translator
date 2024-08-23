@@ -1,3 +1,4 @@
+import os
 import tkinter as tk  # 导入tkinter模块
 from tkinter import filedialog, messagebox  # 导入文件对话框和消息框模块
 from tkinter.ttk import Progressbar, Label, Entry, Button, Checkbutton, Radiobutton, Frame  # 导入ttk组件
@@ -30,15 +31,17 @@ class EPUBTranslatorUI:
         # 修改HTTP代理的布局，使其更紧凑
         Label(self.master, text="HTTP 代理 - IP地址:").grid(row=1, column=0, sticky="w")  # 标签
         self.proxy_ip_entry = Entry(self.master, width=20)  # 输入框，用于输入IP地址
+        self.proxy_ip_entry.insert(0, "127.0.0.1")  # 设置默认值为127.0.0.1
         self.proxy_ip_entry.grid(row=1, column=1, sticky="w")  # 布局IP地址输入框
 
         Label(self.master, text="端口:").grid(row=1, column=2, sticky="w")  # 标签
         self.proxy_port_entry = Entry(self.master, width=10)  # 输入框，用于输入端口
+        self.proxy_port_entry.insert(0, "7890")  # 设置默认值为7890
         self.proxy_port_entry.grid(row=1, column=3, sticky="w", padx=(0, 20))  # 布局端口输入框
 
         Label(self.master, text="要使用的API后缀:").grid(row=2, column=0, sticky="w")  # 标签
         self.api_suffixes = ["com", "com.hk", "com.tw", "co.jp", "com.sg", "co.uk"]  # 标签列表
-        self.api_suffix_vars = {tag: tk.BooleanVar() for tag in self.api_suffixes}  # 创建每个标签的BooleanVar
+        self.api_suffix_vars = {tag: tk.BooleanVar(value=True) for tag in self.api_suffixes}  # 创建每个标签的BooleanVar
 
         # 创建一个框架来包含API后缀复选框
         api_suffixes_frame = Frame(self.master)  # 创建一个框架
@@ -50,9 +53,11 @@ class EPUBTranslatorUI:
 
         Label(self.master, text="目标语言:").grid(row=4, column=0, sticky="w")  # 标签
         # 创建目标语言单选按钮
-        self.dest_lang_var = tk.StringVar(value="en")  # 默认值为英文
-        Radiobutton(self.master, text="英文", variable=self.dest_lang_var, value="en").grid(row=4, column=1, sticky="w")  # 英文单选按钮
-        Radiobutton(self.master, text="中文", variable=self.dest_lang_var, value="zh-cn").grid(row=4, column=2, sticky="w")  # 中文单选按钮
+        self.dest_lang_var = tk.StringVar(value="zh-cn")  # 默认值为中文
+        Radiobutton(self.master, text="中文", variable=self.dest_lang_var, value="zh-cn").grid(row=4, column=1,
+                                                                                               sticky="w")  # 中文单选按钮
+        Radiobutton(self.master, text="英文", variable=self.dest_lang_var, value="en").grid(row=4, column=2, sticky="w")  # 英文单选按钮
+
 
         # 添加翻译模式单选按钮
         self.trans_mode_var = tk.IntVar(value=1)  # 默认值为1
@@ -62,14 +67,22 @@ class EPUBTranslatorUI:
 
         Label(self.master, text="文本翻译线程数量:").grid(row=6, column=0, sticky="w")  # 标签
         self.thread_workers_entry = Entry(self.master, width=50)  # 输入框
+        self.thread_workers_entry.insert(0, "8")  # 设置默认值为8
         self.thread_workers_entry.grid(row=6, column=1)  # 输入框的布局
 
         Label(self.master, text="章节并行处理线程数量:").grid(row=7, column=0, sticky="w")  # 标签
         self.processes_entry = Entry(self.master, width=50)  # 输入框
+        self.processes_entry.insert(0, "8")  # 设置默认值为8
         self.processes_entry.grid(row=7, column=1)  # 输入框的布局
 
         Label(self.master, text="日志文件路径:").grid(row=8, column=0, sticky="w")  # 标签
         self.log_file_entry = Entry(self.master, width=50)  # 输入框
+
+        # 获取用户的下载文件夹路径
+        downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")  # 获取下载文件夹路径
+        default_log_file_path = os.path.join(downloads_folder, "epubTranslate.log")  # 设置默认日志文件路径
+        self.log_file_entry.insert(0, default_log_file_path)  # 设置输入框默认值
+
         self.log_file_entry.grid(row=8, column=1)  # 输入框的布局
 
         # 创建选择文件按钮
@@ -88,7 +101,7 @@ class EPUBTranslatorUI:
 
         Label(self.master, text="要翻译的标签:").grid(row=10, column=0, sticky="w")  # 标签
         self.tags = ["title", "h1", "h2", "h3", "span", "p", "a"]  # 标签列表
-        self.tag_vars = {tag: tk.BooleanVar() for tag in self.tags}  # 创建每个标签的BooleanVar
+        self.tag_vars = {tag: tk.BooleanVar(value=True) for tag in self.tags}  # 创建每个标签的BooleanVar
 
         # 创建一个框架来包含标签复选框
         tags_frame = Frame(self.master)  # 创建一个框架
