@@ -113,7 +113,4 @@ python -m nuitka --follow-imports --standalone --enable-plugin=tk-inter --includ
 
 该项目遵循 MIT 许可证，请查看 LICENSE 文件以获取更多信息。
 
-## 统计信息
-
-![Visitor Count](https://api.countapi.xyz/hit/shiqianwei0508/epub-translator)
 
