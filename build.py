@@ -47,13 +47,25 @@ class PythonCompiler:
         """运行 Nuitka 编译"""
         self.create_env_info()
 
+        # nuitka_command = [
+        #     self.python_executable, '-m', 'nuitka',
+        #     '--msvc=latest',
+        #     '--follow-imports',
+        #     '--standalone',
+        #     '--enable-plugin=tk-inter',
+        #     '--windows-console-mode=disable',
+        #     f'--include-data-dir={self.data_dir}/={self.data_dir}/',
+        #     f'--windows-icon-from-ico={self.icon_path}',
+        #     '--include-data-file=env_info.txt=env_info.txt',  # 包含环境信息文件
+        #     self.script_name
+        # ]
+
         nuitka_command = [
             self.python_executable, '-m', 'nuitka',
             '--msvc=latest',
             '--follow-imports',
             '--standalone',
             '--enable-plugin=tk-inter',
-            '--windows-console-mode=disable',
             f'--include-data-dir={self.data_dir}/={self.data_dir}/',
             f'--windows-icon-from-ico={self.icon_path}',
             '--include-data-file=env_info.txt=env_info.txt',  # 包含环境信息文件
