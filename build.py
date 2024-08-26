@@ -40,7 +40,7 @@ class PythonCompiler:
     - 架构: {self.architecture}
     """
 
-        with open('env_info.txt', 'w') as f:
+        with open('env_info.txt', 'w', encoding='utf8') as f:
             f.write(env_info)
 
     def compile(self):
