@@ -155,12 +155,20 @@ class EPUBTranslatorUI:
             messagebox.showerror("错误", "请提供目标语言。")
             return
 
-            # 启动一个新线程进行翻译
+        # 禁用所有按钮
+        self.toggle_buttons(tk.DISABLED)
+
+        # 把开始翻译按钮修改为"正在翻译，请耐心等待。。。"
+        self.translate_button.config(text="正在翻译，请耐心等待!")
+
+
+        # 启动一个新线程进行翻译
         self.translation_thread = threading.Thread(target=self.start_translation)  # 直接调用start_translation
         self.translation_thread.start()  # 启动线程
 
         # 显示正在翻译的消息框
-        messagebox.showinfo("信息", "正在翻译。。。请查看进度。")
+        # messagebox.showinfo("信息", "正在翻译。。。请查看进度。")
+
 
         # 启动进度条更新
         self.update_progress_bar()
@@ -210,6 +218,11 @@ class EPUBTranslatorUI:
             messagebox.showinfo("成功", "翻译已完成！")  # 显示成功信息
         except Exception as e:  # 捕获错误
             messagebox.showerror("错误", f"翻译失败: {e}")  # 显示错误信息
+        finally:
+            self.toggle_buttons(tk.NORMAL)
+
+            # 恢复开始翻译按钮显示
+            self.translate_button.config(text="开始翻译")
 
     def update_progress_bar(self):
         if self.translation_thread.is_alive():  # 检查翻译线程是否仍在运行
@@ -226,6 +239,11 @@ class EPUBTranslatorUI:
     def update_progress(self, value):
         self.progress['value'] = value  # 更新进度条的值
         self.master.update_idletasks()  # 更新界面
+
+    def toggle_buttons(self, state):
+        self.translate_button.config(state=state)
+        self.select_log_file_button.config(state=state)
+        self.select_files_button.config(state=state)
 
 
 # 创建主窗口
