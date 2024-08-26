@@ -170,3 +170,5 @@ cython_debug/
 !/nuitka-crash-report.xml
 /translation_status.db
 /nuitka-crash-report.xml
+/env_info.txt
+/*.zip

@@ -102,7 +102,7 @@ epub_file_path = path/to/your.epub
 ## exe打包
 
 ```powershell
-python -m nuitka --follow-imports --standalone --enable-plugin=tk-inter --include-data-file=static/pictures/favicon.ico=static/pictures/favicon.ico --windows-icon-from-ico=static/pictures/favicon.ico .\EPUBTranslatorUI.py
+python .\build.py
 ```
 
 ## 贡献
