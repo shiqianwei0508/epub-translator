@@ -100,7 +100,7 @@ class EPUBTranslatorUI:
             Radiobutton(log_level_frame, text=level, variable=self.log_level_var, value=level).grid(row=0, column=i + 1, sticky="w")  # 单选按钮
 
         Label(self.master, text="要翻译的标签:").grid(row=10, column=0, sticky="w")  # 标签
-        self.tags = ["title", "h1", "h2", "h3", "span", "p", "a"]  # 标签列表
+        self.tags = ["title", "h1", "h2", "h3", "span", "p", "a", "li"]  # 标签列表
         self.tag_vars = {tag: tk.BooleanVar(value=True) for tag in self.tags}  # 创建每个标签的BooleanVar
 
         # 创建一个框架来包含标签复选框
