@@ -101,7 +101,7 @@ class EPUBTranslator(XHTMLTranslator):
     def find_xhtml_files(directory):
         xhtml_files = []
 
-        extensions = ['*.html', '*.xhtml']  # 定义要查找的扩展名列表
+        extensions = ['*.html', '*.xhtml', '*.htm']  # 定义要查找的扩展名列表
 
         # 遍历指定的目录
         for dirpath, dirnames, filenames in os.walk(directory):
