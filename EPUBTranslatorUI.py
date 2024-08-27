@@ -8,6 +8,13 @@ import queue  # 导入queue模块用于线程间通信
 
 from epubTranslator import EPUBTranslator  # 导入EPUBTranslator类
 
+LANGUAGE_OPTIONS = [
+    ("中文", "zh-cn"),
+    ("英文", "en"),
+    ("俄语", "ru"),
+    ("韩语", "ko"),
+    ("日语", "ja")
+]
 
 class EPUBTranslatorUI:
     def __init__(self, master):
@@ -52,11 +59,25 @@ class EPUBTranslatorUI:
             Checkbutton(api_suffixes_frame, text=api_suffix, variable=self.api_suffix_vars[api_suffix]).grid(row=i, sticky="w")  # 布局复选框
 
         Label(self.master, text="目标语言:").grid(row=4, column=0, sticky="w")  # 标签
-        # 创建目标语言单选按钮
-        self.dest_lang_var = tk.StringVar(value="zh-cn")  # 默认值为中文
-        Radiobutton(self.master, text="中文", variable=self.dest_lang_var, value="zh-cn").grid(row=4, column=1,
-                                                                                               sticky="w")  # 中文单选按钮
-        Radiobutton(self.master, text="英文", variable=self.dest_lang_var, value="en").grid(row=4, column=2, sticky="w")  # 英文单选按钮
+        # # 创建目标语言单选按钮
+        # self.dest_lang_var = tk.StringVar(value="zh-cn")  # 默认值为中文
+        #
+        # # 单选框
+        # Radiobutton(self.master, text="中文", variable=self.dest_lang_var, value="zh-cn").grid(row=4, column=1,
+        #                                                                                        sticky="w")  # 中文单选按钮
+        # Radiobutton(self.master, text="英文", variable=self.dest_lang_var, value="en").grid(row=4, column=2, sticky="w")  # 英文单选按钮
+
+        # 下拉列表
+        # 定义语言变量，并初始化为第一个选项的代码
+        self.dest_lang_var = tk.StringVar(value=LANGUAGE_OPTIONS[0][0])
+
+        # 创建下拉框，只使用友好文本作为显示选项
+        option_menus = [option[0] for option in LANGUAGE_OPTIONS]  # 提取友好文本列表
+        self.language_menu = tk.OptionMenu(self.master, self.dest_lang_var, *option_menus)
+        self.language_menu.grid(row=4, column=1, sticky="w", padx=10, pady=10)
+
+        # 禁止下拉框菜单项的tearoff行为
+        self.language_menu['menu'].config(tearoff=0)
 
 
         # 添加翻译模式单选按钮
@@ -186,7 +207,13 @@ class EPUBTranslatorUI:
                                  var.get()]  # 获取选中的API后缀
         api_suffixes_use = ",".join(api_suffixes_use_list)  # 以逗号分隔的字符串
 
-        dest_lang = self.dest_lang_var.get()  # 获取目标语言（现在是单选框的值）
+        # dest_lang = self.dest_lang_var.get()  # 获取目标语言（现在是单选框的值）
+
+        # 通过查找友好文本到代码的映射来获取代码
+        for option in LANGUAGE_OPTIONS:
+            if option[0] == self.dest_lang_var.get():  # 假设用户看到的是友好文本
+                dest_lang = option[1]
+                break
 
         trans_mode = self.trans_mode_var.get()  # 获取翻译模式（1或2）
         thread_workers = int(self.thread_workers_entry.get() or 1)  # 获取翻译线程工作数，默认为1

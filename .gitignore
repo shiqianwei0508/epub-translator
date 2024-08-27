@@ -172,3 +172,5 @@ cython_debug/
 /nuitka-crash-report.xml
 /env_info.txt
 /*.zip
+/test/
+/常用命令.md

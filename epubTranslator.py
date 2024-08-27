@@ -443,7 +443,7 @@ class EPUBTranslator(XHTMLTranslator):
             self.logger.critical(f"没有翻译的章节是 {chapters_not_complete}")
             self.logger.critical(f"请切换代理服务器，然后，重新执行 python epubTranslator.py")
             self.logger.critical(f"本程序将会重新读取未翻译章节，直到全部翻译完成！")
-            self.logger.critical(f"注意： 下次启动之后，会询问你是否删除目录，如果不想从头翻译的话，请选择'n'！")
+            # self.logger.critical(f"注意： 下次启动之后，会询问你是否删除目录，如果不想从头翻译的话，请选择'n'！")
 
     def translate(self):
         for epub_path in self.file_paths:
