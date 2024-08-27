@@ -41,7 +41,7 @@ class EPUBTranslatorUI:
         self.proxy_ip_entry.insert(0, "127.0.0.1")  # 设置默认值为127.0.0.1
         self.proxy_ip_entry.grid(row=1, column=1, sticky="w")  # 布局IP地址输入框
 
-        Label(self.master, text="端口:").grid(row=1, column=2, sticky="w")  # 标签
+        Label(self.master, text="端口:").grid(row=1, column=2, sticky="e")  # 标签
         self.proxy_port_entry = Entry(self.master, width=10)  # 输入框，用于输入端口
         self.proxy_port_entry.insert(0, "7890")  # 设置默认值为7890
         self.proxy_port_entry.grid(row=1, column=3, sticky="w", padx=(0, 20))  # 布局端口输入框
@@ -74,7 +74,7 @@ class EPUBTranslatorUI:
         # 创建下拉框，只使用友好文本作为显示选项
         option_menus = [option[0] for option in LANGUAGE_OPTIONS]  # 提取友好文本列表
         self.language_menu = tk.OptionMenu(self.master, self.dest_lang_var, *option_menus)
-        self.language_menu.grid(row=4, column=1, sticky="w", padx=10, pady=10)
+        self.language_menu.grid(row=4, column=1, sticky="e", padx=10, pady=10)
 
         # 禁止下拉框菜单项的tearoff行为
         self.language_menu['menu'].config(tearoff=0)
@@ -83,8 +83,9 @@ class EPUBTranslatorUI:
         # 添加翻译模式单选按钮
         self.trans_mode_var = tk.IntVar(value=1)  # 默认值为1
         Label(self.master, text="翻译模式:").grid(row=5, column=0, sticky="w")  # 标签
-        Radiobutton(self.master, text="仅目标语言", variable=self.trans_mode_var, value=1).grid(row=5, column=1, sticky="w")  # 单选按钮1
-        Radiobutton(self.master, text="双语模式", variable=self.trans_mode_var, value=2).grid(row=5, column=2, sticky="w")  # 单选按钮2
+        Radiobutton(self.master, text="双语模式", variable=self.trans_mode_var, value=2).grid(row=5, column=1, sticky="e")  # 单选按钮1
+        Radiobutton(self.master, text="仅目标语言", variable=self.trans_mode_var, value=1).grid(row=5, column=2, sticky="w")  # 单选按钮2
+
 
         Label(self.master, text="文本翻译线程数量:").grid(row=6, column=0, sticky="w")  # 标签
         self.thread_workers_entry = Entry(self.master, width=50)  # 输入框
