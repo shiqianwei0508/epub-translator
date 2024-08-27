@@ -1,7 +1,7 @@
 import os
 import tkinter as tk  # 导入tkinter模块
 from tkinter import filedialog, messagebox  # 导入文件对话框和消息框模块
-from tkinter.ttk import Progressbar, Label, Entry, Button, Checkbutton, Radiobutton, Frame  # 导入ttk组件
+from tkinter.ttk import Progressbar, Label, Entry, Button, Checkbutton, Radiobutton, Frame, Combobox # 导入ttk组件
 import logging  # 导入logging模块以记录日志
 import threading  # 导入threading模块以支持多线程
 import queue  # 导入queue模块用于线程间通信
@@ -88,14 +88,26 @@ class EPUBTranslatorUI:
 
 
         Label(self.master, text="文本翻译线程数量:").grid(row=6, column=0, sticky="w")  # 标签
-        self.thread_workers_entry = Entry(self.master, width=50)  # 输入框
-        self.thread_workers_entry.insert(0, "8")  # 设置默认值为8
-        self.thread_workers_entry.grid(row=6, column=1)  # 输入框的布局
+
+        # # 输入框
+        # self.thread_workers_entry = Entry(self.master, width=50)  # 输入框
+        # self.thread_workers_entry.insert(0, "8")  # 设置默认值为8
+        # self.thread_workers_entry.grid(row=6, column=1)  # 输入框的布局
+
+        # 组合框
+        self.thread_workers_combobox = Combobox(self.master, values=["1", "2", "4", "8", "16", "32"], state='readonly')
+        self.thread_workers_combobox.current(3)  # 设置默认值为8（索引从0开始，所以8的索引是3）
+        self.thread_workers_combobox.grid(row=6, column=1, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
 
         Label(self.master, text="章节并行处理线程数量:").grid(row=7, column=0, sticky="w")  # 标签
-        self.processes_entry = Entry(self.master, width=50)  # 输入框
-        self.processes_entry.insert(0, "8")  # 设置默认值为8
-        self.processes_entry.grid(row=7, column=1)  # 输入框的布局
+        # self.processes_entry = Entry(self.master, width=50)  # 输入框
+        # self.processes_entry.insert(0, "8")  # 设置默认值为8
+        # self.processes_entry.grid(row=7, column=1)  # 输入框的布局
+
+        # 组合框
+        self.processes_combobox = Combobox(self.master, values=["1", "2", "4", "8", "16", "32"], state='readonly')
+        self.processes_combobox.current(3)  # 设置默认值为8（索引从0开始，所以8的索引是3）
+        self.processes_combobox.grid(row=7, column=1, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
 
         Label(self.master, text="日志文件路径:").grid(row=8, column=0, sticky="w")  # 标签
         self.log_file_entry = Entry(self.master, width=50)  # 输入框
@@ -217,8 +229,13 @@ class EPUBTranslatorUI:
                 break
 
         trans_mode = self.trans_mode_var.get()  # 获取翻译模式（1或2）
-        thread_workers = int(self.thread_workers_entry.get() or 1)  # 获取翻译线程工作数，默认为1
-        processes = int(self.processes_entry.get() or 1)  # 获取并行处理进程数，默认为1
+
+        # thread_workers = int(self.thread_workers_entry.get())  # 获取翻译线程工作数
+        thread_workers = int(self.thread_workers_combobox.get())  # 获取翻译线程工作数
+
+        # processes = int(self.processes_entry.get())  # 获取并行处理进程数
+        processes = int(self.processes_combobox.get())  # 获取并行处理进程数
+
         log_file = self.log_file_entry.get()  # 获取日志文件路径
         log_level = self.log_level_var.get()  # 获取日志级别
         tags_to_translate_list = [tag for tag, var in self.tag_vars.items() if var.get()]  # 获取选中的标签
