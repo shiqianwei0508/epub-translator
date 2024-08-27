@@ -20,7 +20,7 @@ class EPUBTranslatorUI:
 
     def create_widgets(self):
         # 标签和输入框的配置
-        Label(self.master, text="EPUB 文件路径（以逗号分隔）:").grid(row=0, column=0, sticky="w")  # 标签
+        Label(self.master, text="EPUB 文件路径（以分号;分隔）:").grid(row=0, column=0, sticky="w")  # 标签
         self.epub_path_entry = Entry(self.master, width=50)  # 输入框
         self.epub_path_entry.grid(row=0, column=1)  # 输入框的布局
 
@@ -125,8 +125,8 @@ class EPUBTranslatorUI:
         file_paths = filedialog.askopenfilenames(title="选择EPUB文件", filetypes=[("EPUB Files", "*.epub")])  # 选择文件
         if file_paths:  # 如果用户选择了文件
             current_paths = self.epub_path_entry.get()
-            new_paths = ",".join(file_paths)  # 获取新选择的文件路径
-            self.epub_path_entry.insert(tk.END, ("," + new_paths) if current_paths else new_paths)  # 添加新路径
+            new_paths = ";".join(file_paths)  # 获取新选择的文件路径
+            self.epub_path_entry.insert(tk.END, (";" + new_paths) if current_paths else new_paths)  # 添加新路径
 
     def select_log_file(self):
         # 打开文件选择对话框，允许用户选择或创建日志文件
@@ -175,7 +175,7 @@ class EPUBTranslatorUI:
 
     def start_translation(self):
         # 获取输入框的内容
-        epub_paths = self.epub_path_entry.get().split(",")  # 获取EPUB文件路径并分割
+        epub_paths = self.epub_path_entry.get().split(";")  # 获取EPUB文件路径并分割
 
         # 获取HTTP代理IP和端口，并组合成"http://IP:端口"格式
         proxy_ip = self.proxy_ip_entry.get()  # 获取HTTP代理的IP地址

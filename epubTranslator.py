@@ -486,7 +486,7 @@ class ConfigLoader:
                 # 'file_paths': self.args.file_paths
                 'file_paths': [
                     path.strip() for path in
-                    self.config.get('Files', 'epub_file_path', fallback="").split(',')
+                    self.config.get('Files', 'epub_file_path', fallback="").split(';')
                     if path.strip()
                 ]
             }
