@@ -122,7 +122,7 @@ if __name__ == "__main__":
         script_name='EPUBTranslatorUI.py',
         icon_path='static/pictures/favicon.ico',
         data_dir='static',
-        version_info='2.0.5'
+        version_info='2.0.6'
     )
 
     zip_file = compiler.run()

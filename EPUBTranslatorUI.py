@@ -259,8 +259,10 @@ class EPUBTranslatorUI:
         )
 
         try:
-            translator.translate()  # 调用翻译方法
-            messagebox.showinfo("成功", "翻译已完成！")  # 显示成功信息
+            if translator.translate():  # 调用翻译方法
+                messagebox.showinfo("成功", "翻译已完成！")  # 显示成功信息
+            else:
+                messagebox.showerror("异常", f"翻译章节不完整，请重新执行本程序！")
         except Exception as e:  # 捕获错误
             messagebox.showerror("错误", f"翻译失败: {e}")  # 显示错误信息
         finally:

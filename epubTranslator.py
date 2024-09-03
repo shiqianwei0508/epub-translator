@@ -438,6 +438,7 @@ class EPUBTranslator(XHTMLTranslator):
                 self.logger.debug(f"清理完成")
             except Exception as e:
                 self.logger.error(f"临时目录清理异常: {e}")
+            return True
         else:
             self.logger.critical(f"还有{len(chapters_not_complete)}个章节，没有翻译或者存在异常")
             self.logger.critical(f"没有翻译的章节是 {chapters_not_complete}")
@@ -445,10 +446,18 @@ class EPUBTranslator(XHTMLTranslator):
             self.logger.critical(f"本程序将会重新读取未翻译章节，直到全部翻译完成！")
             # self.logger.critical(f"注意： 下次启动之后，会询问你是否删除目录，如果不想从头翻译的话，请选择'n'！")
 
+            return False
+
     def translate(self):
         for epub_path in self.file_paths:
             self.logger.debug(f"Processing EPUB file: {epub_path}")
-            self.process_epub(epub_path)
+            if self.process_epub(epub_path):
+                self.logger.info(f'epub file {epub_path} has been translated')
+                return True
+            else:
+                self.logger.critical(f'epub file {epub_path} has not been translated, '
+                                     f'please run the program again to fix it !')
+                return False
 
 
 class ConfigLoader:
