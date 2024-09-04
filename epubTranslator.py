@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import cycle
 
 from bs4 import BeautifulSoup, NavigableString
-from translation_api.google_trans_new import google_translator
+from translate_api.google_translate_v2 import google_translator
 from tqdm import tqdm
 
 from xhtmlTranslate import XHTMLTranslator, Logger

@@ -10,7 +10,7 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup, NavigableString
-from translation_api.google_trans_new import google_translator
+from translate_api.google_translate_v2 import google_translator
 from itertools import cycle
 from tqdm import tqdm
 
