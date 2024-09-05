@@ -174,3 +174,4 @@ cython_debug/
 /*.zip
 /test/
 /常用命令.md
+!/config.ini
