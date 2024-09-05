@@ -1,26 +1,30 @@
+import json
+import re
 import time
 import logging
+import traceback
+
 from zhipuai import ZhipuAI
 
 # 配置日志记录
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class ZhipuAiTranslate:
     language_system_contents = {
-        "en": "你是一个英文翻译专家，可以把任意语言翻译为地道的美国英文，请帮我把下文翻译为地道易懂的美国英文，要求简单易懂，尽量不使用生僻的语法和字。",
-        "zh": "你是一个中文翻译专家，可以把任意语言翻译为地道的中文普通话，请帮我把下文翻译为地道易懂的普通话，要求简单易懂，尽量不使用生僻的语法和繁体字。",
-        "ru": "你是一个俄语翻译专家，可以把任意语言翻译为地道的俄语，请帮我把下文翻译为地道易懂的俄语，要求简单易懂，尽量不使用生僻的语法和字。",
-        "ja": "你是一个日语翻译专家，可以把任意语言翻译为地道的日语，请帮我把下文翻译为地道易懂的日语，要求简单易懂，尽量不使用生僻的语法和字。",
-        "de": "你是一个德语翻译专家，可以把任意语言翻译为地道的德语，请帮我把下文翻译为地道易懂的德语，要求简单易懂，尽量不使用生僻的语法和字。",
-        "fr": "你是一个法语翻译专家，可以把任意语言翻译为地道的法语，请帮我把下文翻译为地道易懂的法语，要求简单易懂，尽量不使用生僻的语法和字。"
+        "en": "你是一个英文翻译专家，可以把任意语言翻译为地道的美国英文，请帮我把下文翻译为地道易懂的美国英文，要求简单易懂，尽量不使用生僻的语法和字，内容也要尽量安全，别太直接。别再问我需不需要翻译了，肯定是得翻译的。",
+        "zh-cn": "你是一个中文翻译专家，可以把任意语言翻译为地道的中文普通话，请帮我把下文翻译为地道易懂的普通话，要求简单易懂，尽量不使用生僻的语法和繁体字，内容也要尽量安全，别太直接。别再问我需不需要翻译了，肯定是得翻译的。",
+        "ru": "你是一个俄语翻译专家，可以把任意语言翻译为地道的俄语，请帮我把下文翻译为地道易懂的俄语，要求简单易懂，尽量不使用生僻的语法和字，内容也要尽量安全，别太直接。别再问我需不需要翻译了，肯定是得翻译的。",
+        "ja": "你是一个日语翻译专家，可以把任意语言翻译为地道的日语，请帮我把下文翻译为地道易懂的日语，要求简单易懂，尽量不使用生僻的语法和字，内容也要尽量安全，别太直接。别再问我需不需要翻译了，肯定是得翻译的。",
+        "de": "你是一个德语翻译专家，可以把任意语言翻译为地道的德语，请帮我把下文翻译为地道易懂的德语，要求简单易懂，尽量不使用生僻的语法和字，内容也要尽量安全，别太直接。别再问我需不需要翻译了，肯定是得翻译的。",
+        "fr": "你是一个法语翻译专家，可以把任意语言翻译为地道的法语，请帮我把下文翻译为地道易懂的法语，要求简单易懂，尽量不使用生僻的语法和字，内容也要尽量安全，别太直接。别再问我需不需要翻译了，肯定是得翻译的。"
     }
 
-    def __init__(self, api_key, model="glm-4-flash", timeout=10):
-        self.api_key = api_key
+    def __init__(self, zhipu_api_key, zhipu_model="glm-4-flash", zhipu_translate_timeout=10):
+        self.api_key = zhipu_api_key
         self.client = ZhipuAI(api_key=self.api_key)
-        self.model = model if model else self.model
-        self.timeout = timeout
+        self.model = zhipu_model if zhipu_model else self.model
+        self.timeout = zhipu_translate_timeout
 
     def translate(self, user_content, target_language):
         self.user_content = user_content
@@ -66,6 +70,17 @@ class ZhipuAiTranslate:
 
             except Exception as e:
                 logging.error(f"Error checking task status: {e}")
+                # 使用正则表达式查找大括号包围的内容
+                match = re.search(r'\{.*\}', str(e))
+
+                # 如果有匹配，提取内容
+                if match:
+                    bracket_content = match.group(0)
+                    print(bracket_content)
+                else:
+                    print("No matching content found.")
+                error_text = json.loads(bracket_content).get('error', {}).get('message', '')
+                return {"智谱AI": error_text}
                 break
 
             time.sleep(1)
@@ -84,21 +99,21 @@ class ZhipuAiTranslate:
 
 if __name__ == "__main__":
     api_key = "418234312598633f63b857c945a47f1f.x3jeQyzDJNk9KXJ4"
-    translator = ZhipuAiTranslate(api_key, timeout=30)
+    translator = ZhipuAiTranslate(zhipu_api_key=api_key, zhipu_translate_timeout=30)
 
     # 示例翻译
-    text_to_translate = '''      
-    智谱AI 开放平台提供一系列具有不同功能和定价的大模型，包括通用大模型、超拟人大模型、图像大模型、向量大模型等，并且支持使用您的私有数据对模型进行微调。 监控您的网站，展示状态（包括每日历史记录），并在网站状态发生变化时收到 Slack 通知。使用 Cloudflare Workers、CRON 触发器和 KV 存储。基于 Cloudflare Worker 的无服务器站点监控工具， 支持 HTTP/HTTPS/TCP 多种协议的端口监控， 可以从全球数百个城市发起地理位置特定的检查， 自定义的请求参数和响应校验规则,灵活适配各类监控场景。 
-    规范一些代码文件和目录的命名，添加智谱AI翻译接口。
-    '''
-    translation_to_en = translator.translate(text_to_translate, "en")  # 设置超时时间为30秒（实际在初始化时设置了10秒）
-    logging.info(f"Translation to English: {translation_to_en}")
-
-    # text_to_translate_en = '''
-    # It is indeed noteworthy that the United States seems to exhibit a distinct approach regarding accountability for actions taken by different entities. The impact of the case may be mostly symbolic given that Sinwar is believed to be hiding in tunnels in Gaza and the Justice Department says three of the six defendants are believed now to be dead. But officials say additional actions are expected as part of a broader effort to target a militant group that the U.S. designated as a foreign terrorist organization in 1997 and that over the decades has been linked to a series of deadly attacks on Israel, including suicide bombings.
+    # text_to_translate = '''
+    # 智谱AI 开放平台提供一系列具有不同功能和定价的大模型，包括通用大模型、超拟人大模型、图像大模型、向量大模型等，并且支持使用您的私有数据对模型进行微调。 监控您的网站，展示状态（包括每日历史记录），并在网站状态发生变化时收到 Slack 通知。使用 Cloudflare Workers、CRON 触发器和 KV 存储。基于 Cloudflare Worker 的无服务器站点监控工具， 支持 HTTP/HTTPS/TCP 多种协议的端口监控， 可以从全球数百个城市发起地理位置特定的检查， 自定义的请求参数和响应校验规则,灵活适配各类监控场景。
+    # 规范一些代码文件和目录的命名，添加智谱AI翻译接口。
     # '''
-    # translation_to_zh = translator.translate(text_to_translate_en, "zh")  # 设置超时时间为30秒（实际在初始化时设置了10秒）
-    # logging.info(f"Translation to Chinese: {translation_to_zh}")
+    # translation_to_en = translator.translate(text_to_translate, "en")  # 设置超时时间为30秒（实际在初始化时设置了10秒）
+    # logging.info(f"Translation to English: {translation_to_en}")
+
+    text_to_translate_en = '''
+    If they do make it into Burma, the women face imprisonment or worse. If apprehended by Burmese border patrols they are charged with “illegal departure” from Burma. If they cannot pay the fine, and most cannot, they serve six months’ hard labor. Imprisonment applies to all those convicted—men, women, and children. If a girl or woman is suspected of having been a prostitute she can face additional charges and long sentences. Women found to be HIV-positive have been imprisoned and executed by the Burmese military dictatorship. According to Human Rights Watch there are consistent reports of “deportees being routinely arrested, detained, subjected to abuse and forced to porter for the military. Torture, rape and execution have been well documented by the United Nations bodies, international human rights organizations, and governments.”
+    '''
+    translation_to_zh = translator.translate(text_to_translate_en, "zh-cn")  # 设置超时时间为30秒（实际在初始化时设置了10秒）
+    logging.info(f"Translation to Chinese: {translation_to_zh}")
 
     # 更多语言的翻译示例
     # ...

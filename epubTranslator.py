@@ -38,11 +38,12 @@ class EPUBTranslator(XHTMLTranslator):
     translate_db = None
 
     def __init__(self, file_paths, processes, http_proxy, log_file, log_level, gtransapi_suffixes, dest_lang,
-                 trans_mode, translate_thread_workers, tags_to_translate):
+                 trans_mode, translate_thread_workers, tags_to_translate, translator_api, **translator_kwargs):
         self.file_paths = file_paths
         self.processes = processes
         super(EPUBTranslator, self).__init__(http_proxy, gtransapi_suffixes, dest_lang,
-                                             trans_mode, translate_thread_workers, tags_to_translate)
+                                             trans_mode, translate_thread_workers, tags_to_translate,
+                                             translator_api, **translator_kwargs)
 
         self.gtransapi_suffixes = gtransapi_suffixes.split(',')
         self.gtransapi_suffixes_cycle = cycle(self.gtransapi_suffixes)  # 使用无限循环
@@ -114,103 +115,103 @@ class EPUBTranslator(XHTMLTranslator):
 
         return xhtml_files
 
-    def translate_text(self, text):
-        """翻译单个文本，支持字符串和字符串列表。"""
-        max_retries = 5
-
-        # 每次请求时都创建获取当前前缀并且创建新的翻译器实例
-        current_suffix = next(self.gtransapi_suffixes_cycle)
-        translatorObj = google_translator(timeout=5, url_suffix=current_suffix,
-                                          proxies={'http': self.http_proxy, 'https': self.http_proxy})
-
-        for attempt in range(max_retries):
-            try:
-                self.logger.debug(f"Translating text: {text} using suffix: {current_suffix}")
-
-                if isinstance(text, str):
-                    result = translatorObj.translate(text, self.dest_lang)
-                    self.logger.debug(f"Translated result: {result}")
-                    return self.format_result(text, result)
-                else:
-                    results = [translatorObj.translate(substr, self.dest_lang) for substr in text]
-                    self.logger.debug(f"Translated results: {results}")
-                    return [self.format_result(substr, result) for substr, result in zip(text, results)]
-            except Exception as e:
-                self.logger.warning(f"Error during translation attempt {attempt + 1}: {e}")
-                wait_time = random.uniform(2, 7)
-                if attempt < 2:
-                    # 前 3 次不修改后缀
-                    self.logger.warning(f"Retrying in {wait_time:.2f} seconds without changing suffix...")
-                else:
-                    # 从第 4 次开始修改后缀并重建实例
-                    current_suffix = next(self.gtransapi_suffixes_cycle)
-                    translatorObj = google_translator(timeout=5, url_suffix=current_suffix,
-                                                      proxies={'http': self.http_proxy, 'https': self.http_proxy})
-                    self.logger.error(f"Retrying in {wait_time:.2f} seconds with new suffix: {current_suffix}...")
-
-                time.sleep(wait_time)
-
-        self.logger.critical("Translation failed after multiple attempts. Returning None.")
-        return None
-
-    def process_xhtml(self, chapter_item, supported_tags):
-
-        with open(chapter_item, 'r', encoding='utf-8') as file:
-            xhtml_content = file.read()
-
-        soup = BeautifulSoup(xhtml_content, 'html.parser')
-        self.logger.debug("Starting translation of paragraphs.")
-
-        # 支持翻译的标签
-        # supported_tags = ["p", "title", "h1", "h2"]
-        supported_tags = self.tags_to_translate
-        translations = []  # 存储待替换的文本与翻译结果
-
-        # 将 soup.descendants 转换为列表，以避免在遍历过程中修改结构
-        descendants = list(soup.descendants)
-
-        # 收集需要翻译的文本和对应的元素
-        texts_to_translate = []
-        for element in descendants:
-            if isinstance(element, NavigableString) and element.strip() and element.parent.name in supported_tags:
-                # 检查元素是否包含字母且不只是数字
-                if re.search(r'[a-zA-Z]', element) and not re.match(r'^\d+$', element):
-                    need_translate = element.strip()
-                    texts_to_translate.append((element, need_translate))  # 存储原始元素和文本`
-
-        # 使用 ThreadPoolExecutor 进行并发翻译
-        with ThreadPoolExecutor(max_workers=self.TranslateThreadWorkers) as executor:
-            # 使用 tqdm 显示进度条
-            future_to_text = {executor.submit(self.translate_text, text): (element, text) for element, text in
-                              texts_to_translate}
-            self.logger.debug(f"Total texts to translate: {len(future_to_text)}")
-
-            for future in tqdm(as_completed(future_to_text), total=len(future_to_text),
-                               desc=f"Translating the chapter '{chapter_item}'"):
-                element, original_text = future_to_text[future]
-                # time.sleep(random.uniform(0.1, 1))  # 随机等待时间，0.1到1秒
-                self.logger.debug(f"Processing translation for: '{original_text}' (Element: {element})")
-
-                translated_text = future.result()
-                self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
-
-                # 如果 translated_text 为空，直接返回，不再处理此文本
-                if translated_text is None or translated_text == "":
-                    self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
-                    return {"error": f"Translation error for '{chapter_item}'"}  # 返回错误信息
-
-                translations.append((element, translated_text))  # 存储原始元素和翻译结果
-                self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
-
-        # 统一替换翻译结果
-        for element, translated_text in translations:
-            element.replace_with(translated_text)
-            self.logger.debug(f"Replaced with translated text: '{translated_text}'")
-
-        self.logger.debug(f"Finished translation of chapter '{chapter_item}'.")
-        with open(chapter_item, 'w', encoding='utf-8') as file:
-            file.write(str(soup))
-        # return str(soup)
+    # def translate_text(self, text):
+    #     """翻译单个文本，支持字符串和字符串列表。"""
+    #     max_retries = 5
+    #
+    #     # 每次请求时都创建获取当前前缀并且创建新的翻译器实例
+    #     current_suffix = next(self.gtransapi_suffixes_cycle)
+    #     translatorObj = google_translator(timeout=5, url_suffix=current_suffix,
+    #                                       proxies={'http': self.http_proxy, 'https': self.http_proxy})
+    #
+    #     for attempt in range(max_retries):
+    #         try:
+    #             self.logger.debug(f"Translating text: {text} using suffix: {current_suffix}")
+    #
+    #             if isinstance(text, str):
+    #                 result = translatorObj.translate(text, self.dest_lang)
+    #                 self.logger.debug(f"Translated result: {result}")
+    #                 return self.format_result(text, result)
+    #             else:
+    #                 results = [translatorObj.translate(substr, self.dest_lang) for substr in text]
+    #                 self.logger.debug(f"Translated results: {results}")
+    #                 return [self.format_result(substr, result) for substr, result in zip(text, results)]
+    #         except Exception as e:
+    #             self.logger.warning(f"Error during translation attempt {attempt + 1}: {e}")
+    #             wait_time = random.uniform(2, 7)
+    #             if attempt < 2:
+    #                 # 前 3 次不修改后缀
+    #                 self.logger.warning(f"Retrying in {wait_time:.2f} seconds without changing suffix...")
+    #             else:
+    #                 # 从第 4 次开始修改后缀并重建实例
+    #                 current_suffix = next(self.gtransapi_suffixes_cycle)
+    #                 translatorObj = google_translator(timeout=5, url_suffix=current_suffix,
+    #                                                   proxies={'http': self.http_proxy, 'https': self.http_proxy})
+    #                 self.logger.error(f"Retrying in {wait_time:.2f} seconds with new suffix: {current_suffix}...")
+    #
+    #             time.sleep(wait_time)
+    #
+    #     self.logger.critical("Translation failed after multiple attempts. Returning None.")
+    #     return None
+    #
+    # def process_xhtml(self, chapter_item, supported_tags):
+    #
+    #     with open(chapter_item, 'r', encoding='utf-8') as file:
+    #         xhtml_content = file.read()
+    #
+    #     soup = BeautifulSoup(xhtml_content, 'html.parser')
+    #     self.logger.debug("Starting translation of paragraphs.")
+    #
+    #     # 支持翻译的标签
+    #     # supported_tags = ["p", "title", "h1", "h2"]
+    #     supported_tags = self.tags_to_translate
+    #     translations = []  # 存储待替换的文本与翻译结果
+    #
+    #     # 将 soup.descendants 转换为列表，以避免在遍历过程中修改结构
+    #     descendants = list(soup.descendants)
+    #
+    #     # 收集需要翻译的文本和对应的元素
+    #     texts_to_translate = []
+    #     for element in descendants:
+    #         if isinstance(element, NavigableString) and element.strip() and element.parent.name in supported_tags:
+    #             # 检查元素是否包含字母且不只是数字
+    #             if re.search(r'[a-zA-Z]', element) and not re.match(r'^\d+$', element):
+    #                 need_translate = element.strip()
+    #                 texts_to_translate.append((element, need_translate))  # 存储原始元素和文本`
+    #
+    #     # 使用 ThreadPoolExecutor 进行并发翻译
+    #     with ThreadPoolExecutor(max_workers=self.TranslateThreadWorkers) as executor:
+    #         # 使用 tqdm 显示进度条
+    #         future_to_text = {executor.submit(self.translate_text, text): (element, text) for element, text in
+    #                           texts_to_translate}
+    #         self.logger.debug(f"Total texts to translate: {len(future_to_text)}")
+    #
+    #         for future in tqdm(as_completed(future_to_text), total=len(future_to_text),
+    #                            desc=f"Translating the chapter '{chapter_item}'"):
+    #             element, original_text = future_to_text[future]
+    #             # time.sleep(random.uniform(0.1, 1))  # 随机等待时间，0.1到1秒
+    #             self.logger.debug(f"Processing translation for: '{original_text}' (Element: {element})")
+    #
+    #             translated_text = future.result()
+    #             self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
+    #
+    #             # 如果 translated_text 为空，直接返回，不再处理此文本
+    #             if translated_text is None or translated_text == "":
+    #                 self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
+    #                 return {"error": f"Translation error for '{chapter_item}'"}  # 返回错误信息
+    #
+    #             translations.append((element, translated_text))  # 存储原始元素和翻译结果
+    #             self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
+    #
+    #     # 统一替换翻译结果
+    #     for element, translated_text in translations:
+    #         element.replace_with(translated_text)
+    #         self.logger.debug(f"Replaced with translated text: '{translated_text}'")
+    #
+    #     self.logger.debug(f"Finished translation of chapter '{chapter_item}'.")
+    #     with open(chapter_item, 'w', encoding='utf-8') as file:
+    #         file.write(str(soup))
+    #     # return str(soup)
 
     def translate_chapter(self, chapter_item):
 
@@ -337,60 +338,10 @@ class EPUBTranslator(XHTMLTranslator):
         total_chapters = len(chapters_not_complete)
         self.logger.info(f"Total chapters that need to be translate: {total_chapters}")
 
-        # log_queue = multiprocessing.Queue()  # 创建日志队列
-        #
-        # listener_process = multiprocessing.Process(target=self.listener, args=(log_queue,))
-        # listener_process.start()  # 启动监听进程
-
         log_queue = queue.Queue()  # 使用线程安全的队列
         # 启动监听线程
         listener_thread = threading.Thread(target=self.listener, args=(log_queue,))
         listener_thread.start()
-
-        # # 多进程
-        # current_progress = multiprocessing.Value('i', 0)
-        #
-        # def update_progress_callback(_):
-        #     try:
-        #         with current_progress.get_lock():
-        #             current_progress.value += 1
-        #             EPUBTranslator.update_progress(current_progress.value, total_chapters)
-        #     except Exception as e:
-        #         self.logger.error(f"Error in update_progress_callback: {e}")
-        #
-        # with multiprocessing.Pool(processes=self.processes) as pool:
-        #     for index, chapter_item in enumerate(chapters_not_complete):
-        #         # self.logger.debug(f"Processing chapter: {index} {chapter_item}")
-        #         log_queue.put(f"Processing chapter: {index} {chapter_item}")
-        #         try:
-        #             pool.apply_async(self.translate_with_delay, (chapter_item, index, total_chapters, log_queue),
-        #                              callback=update_progress_callback)
-        #         except Exception as e:
-        #             # self.logger.error(f"Error in multiprocessing progress: {e}")
-        #             log_queue.put(f"Error in multiprocessing progress: {e}")
-        #         log_queue.put(f"Processed chapter: {index} {chapter_item} \n")
-        #
-        #     # 等待所有进程完成
-        #     pool.close()
-        #     pool.join()
-
-        # # 单进程处理
-        # for index, chapter_item in enumerate(chapters_not_complete):
-        #     # self.logger.debug(f"Processing chapter: {index} {chapter_item}")
-        #     log_queue.put(f"Processing chapter: {index} {chapter_item}")
-        #     try:
-        #         # 直接调用翻译函数，而不是使用 apply_async
-        #         self.translate_with_delay(chapter_item, index, total_chapters, log_queue)
-        #         # 更新进度
-        #         EPUBTranslator.update_progress(index + 1, total_chapters)
-        #     except Exception as e:
-        #         # self.logger.error(f"Error in single process progress: {e}")
-        #         log_queue.put(f"Error in single process progress: {e}")
-        #
-        #     log_queue.put(f"Processed chapter: {index} {chapter_item} \n")
-
-        # log_queue.put(None)  # 用 None 来结束监听进程
-        # listener_process.join()  # 等待监听进程结束
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.processes) as executor:
             futures = []
@@ -406,7 +357,8 @@ class EPUBTranslator(XHTMLTranslator):
             # 等待所有线程完成并更新进度
             for future, index in futures:
                 try:
-                    future.result()  # 等待线程执行完成
+                    result = future.result()  # 等待线程执行完成
+                    log_queue.put(f"Result of future {index}: {result}")  # 打印结果
                     EPUBTranslator.update_progress(index + 1, total_chapters)  # 更新进度
                 except Exception as e:
                     log_queue.put(f"Error in future result: {e}")
@@ -497,13 +449,16 @@ class ConfigLoader:
                     path.strip() for path in
                     self.config.get('Files', 'epub_file_path', fallback="").split(';')
                     if path.strip()
-                ]
+                ],
+                'translator_api': self.config.get('ZhiPuAI', 'translator_api', fallback=self.args.translator_api),
+                'zhipu_api_key': self.config.get('ZhiPuAI', 'zhipu_api_key', fallback=self.args.zhipu_api_key),
+                'zhipu_translate_timeout': self.config.getint('ZhiPuAI', 'zhipu_translate_timeout', fallback=self.args.zhipu_translate_timeout)
             }
 
             # 如果需要处理文件路径为原始字符串，可以在这里进行转换
             config_data['file_paths'] = [r"{}".format(path) for path in config_data['file_paths']]
 
-            # print(f"config_data: {config_data}")
+            print(f"config_data: {config_data}")
 
             return config_data
         except Exception as e:
@@ -529,6 +484,10 @@ def main():
     parser.add_argument('--tags_to_translate', type=str,
                         help='The content of the tags that will be translate'
                              ' (e.g., "h1,h2,h3,title,p")')
+    parser.add_argument('--translator_api', type=str, default='google',
+                        help='Translate API, support google and zhipuAI')
+    parser.add_argument('--zhipu_api_key', type=str, help='ZhiPu API key.')
+    parser.add_argument('--zhipu_translate_timeout', type=int, help='ZhiPu translate timeout.')
 
     # 首先解析命令行参数
     args = parser.parse_args()
@@ -568,7 +527,10 @@ def main():
         config['dest_lang'],
         config['transMode'],
         config['TranslateThreadWorkers'],  # 确保传递翻译线程工作数
-        config['tags_to_translate']
+        tags_to_translate=config['tags_to_translate'],
+        translator_api=config['translator_api'],
+        zhipu_api_key=config['zhipu_api_key'],
+        zhipu_translate_timeout=config['zhipu_translate_timeout']
     )
 
     # 进行翻译
