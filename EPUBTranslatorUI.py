@@ -448,6 +448,10 @@ class EPUBTranslatorUI:
         self.translate_button.config(state=state)
         self.select_log_file_button.config(state=state)
         self.select_files_button.config(state=state)
+        self.tags_frame_visible_button.config(state=state)
+        self.google_api_frame_visible_button.config(state=state)
+        self.zhipu_api_frame_visible_button.config(state=state)
+
 
 
 # 创建主窗口
