@@ -26,19 +26,67 @@ class EPUBTranslatorUI:
         self.queue = queue.Queue()  # 初始化队列用于线程间通信
 
     def create_widgets(self):
+
+        # 首先创建一个框架，把文件选择和翻译API选择一起放进去
+        self.translate_essential_frame = Frame(self.master)  # 创建一个框架
+        self.translate_essential_frame.grid(row=0, column=0, sticky='nsew')
+
         # 标签和输入框的配置
-        Label(self.master, text="EPUB 文件路径（以分号;分隔）:").grid(row=0, column=0, sticky="w")  # 标签
-        self.epub_path_entry = Entry(self.master, width=50)  # 输入框
-        self.epub_path_entry.grid(row=0, column=1)  # 输入框的布局
+        Label(self.translate_essential_frame, text="EPUB 文件路径（以分号;分隔）:").grid(row=0, column=0, sticky="w")  # 标签
+        self.epub_path_entry = Entry(self.translate_essential_frame, width=50)  # 输入框
+        self.epub_path_entry.grid(row=0, column=1, columnspan=2)  # 输入框的布局
 
         # 创建选择文件按钮
-        self.select_files_button = Button(self.master, text="选择文件", command=self.select_files)  # 按钮
-        self.select_files_button.grid(row=0, column=2)  # 按钮的布局
+        self.select_files_button = Button(self.translate_essential_frame, text="选择文件", command=self.select_files)  # 按钮
+        self.select_files_button.grid(row=0, column=3)  # 按钮的布局
+
+        # 添加翻译API多选框
+        Label(self.translate_essential_frame, text="选择翻译API:   ").grid(row=1, column=0, sticky="w")  # 标签
+        self.translator_api_var = tk.StringVar(value="zhipu")  # 默认值为INFO
+        self.translator_apis = ["google", "zhipu"]  # 日志级别列表
+        self.display_translator_api_texts = {
+            "google": "谷歌",
+            "zhipu": "智谱AI"
+        }
+        for i, translator_api in enumerate(self.translator_apis):
+            # 从映射字典中获取显示文本
+            display_translator_api_text = self.display_translator_api_texts[translator_api]
+            Radiobutton(self.translate_essential_frame, text=display_translator_api_text, variable=self.translator_api_var, value=translator_api).grid(row=1, column=i + 1, sticky="w")  # 单选按钮m
+
+        # 搞个分割线
+        self.canvas = tk.Canvas(self.translate_essential_frame, width=600, height=2, bg='orange')
+        self.canvas.grid(row=2, column=0, columnspan=6, sticky="w")
+
+
+        # 智谱API参数可见性
+        self.zhipu_api_frame_visible_button = Button(self.master, text="隐藏智谱翻译API参数",
+                                                      command=self.zhipu_api_frame_visibility)
+        self.zhipu_api_frame_visible_button.grid(row=1, column=1, sticky="w")
+
+        # 智谱API参数框架
+        self.zhipu_api_frame = Frame(self.master)  # 创建一个框架
+        self.zhipu_api_frame.grid(row=1, column=0, columnspan=5, sticky="w")  # 布局框架
+
+        # 智谱翻译参数输入框 API_KEY
+        Label(self.zhipu_api_frame, text="智谱API_KEY:  ").grid(row=0, column=0, sticky="w")  # 标签
+        self.zhipu_api_key_entry = Entry(self.zhipu_api_frame, width=50)
+        self.zhipu_api_key_entry.insert(0, "68d7137473437a6aa3025e6c8ba8a614.fR45KbBnM5Z7StmN")
+        self.zhipu_api_key_entry.grid(row=0, column=1, columnspan=2)
+
+        # 智谱翻译超时时间 默认30
+        Label(self.zhipu_api_frame, text="智谱翻译超时时间: ").grid(row=1, column=0, sticky="w")  # 标签
+        self.zhipu_translate_timeout_entry = Entry(self.zhipu_api_frame, width=50)
+        self.zhipu_translate_timeout_entry.insert(0, "30")
+        self.zhipu_translate_timeout_entry.grid(row=1, column=1, columnspan=2)
+
+        # 搞个分割线
+        self.canvas = tk.Canvas(self.zhipu_api_frame, width=600, height=2, bg='orange')
+        self.canvas.grid(row=2, column=0, columnspan=6, sticky="w")
 
         # 谷歌翻译API参数可见性
-        self.api_suffixes_visible_button = Button(self.master, text="显示谷歌翻译API参数",
-                                                  command=self.api_suffixes_visibility)
-        self.api_suffixes_visible_button.grid(row=2, column=2, sticky="w")
+        self.google_api_frame_visible_button = Button(self.master, text="显示谷歌翻译API参数",
+                                                  command=self.google_api_frame_visibility)
+        self.google_api_frame_visible_button.grid(row=2, column=1, sticky="w")
 
         # 创建一个框架包含所有google翻译相关选项
         self.google_api_frame = Frame(self.master)  # 创建一个框架
@@ -75,7 +123,15 @@ class EPUBTranslatorUI:
         for i, api_suffix in enumerate(self.api_suffixes):
             Checkbutton(self.api_suffixes_frame, text=api_suffix, variable=self.api_suffix_vars[api_suffix]).grid(row=i, sticky="w")  # 布局复选框
 
-        Label(self.master, text="目标语言:").grid(row=4, column=0, sticky="w")  # 标签
+        # 搞个分割线
+        self.canvas = tk.Canvas(self.google_api_frame, width=600, height=2, bg='orange')
+        self.canvas.grid(row=3, column=0, columnspan=6, sticky="w")
+
+        # 首先创建一个框架，把通用选项一起放进去
+        self.translate_general_option_frame = Frame(self.master)  # 创建一个框架
+        self.translate_general_option_frame.grid(row=6, column=0, sticky='nsew')
+
+        Label(self.translate_general_option_frame, text="目标语言:").grid(row=0, column=0, sticky="w")  # 标签
         # # 创建目标语言单选按钮
         # self.dest_lang_var = tk.StringVar(value="zh-cn")  # 默认值为中文
         #
@@ -90,20 +146,20 @@ class EPUBTranslatorUI:
 
         # 创建下拉框，只使用友好文本作为显示选项
         option_menus = [option[0] for option in LANGUAGE_OPTIONS]  # 提取友好文本列表
-        self.language_menu = tk.OptionMenu(self.master, self.dest_lang_var, *option_menus)
-        self.language_menu.grid(row=4, column=1, sticky="e", padx=10, pady=10)
+        self.language_menu = tk.OptionMenu(self.translate_general_option_frame, self.dest_lang_var, *option_menus)
+        self.language_menu.grid(row=0, column=1, sticky="e", padx=10, pady=10)
 
         # 禁止下拉框菜单项的tearoff行为
         self.language_menu['menu'].config(tearoff=0)
 
         # 添加翻译模式单选按钮
-        self.trans_mode_var = tk.IntVar(value=1)  # 默认值为1
-        Label(self.master, text="翻译模式:").grid(row=5, column=0, sticky="w")  # 标签
-        Radiobutton(self.master, text="双语模式", variable=self.trans_mode_var, value=2).grid(row=5, column=1, sticky="e")  # 单选按钮1
-        Radiobutton(self.master, text="仅目标语言", variable=self.trans_mode_var, value=1).grid(row=5, column=2, sticky="w")  # 单选按钮2
+        self.trans_mode_var = tk.IntVar(value=2)  # 默认值为2 双语模式
+        Label(self.translate_general_option_frame, text="翻译模式:").grid(row=1, column=0, sticky="w")  # 标签
+        Radiobutton(self.translate_general_option_frame, text="双语模式", variable=self.trans_mode_var, value=2).grid(row=1, column=1, sticky="e")  # 单选按钮1
+        Radiobutton(self.translate_general_option_frame, text="仅目标语言", variable=self.trans_mode_var, value=1).grid(row=1, column=2, sticky="w")  # 单选按钮2
 
 
-        Label(self.master, text="文本翻译线程数量:").grid(row=6, column=0, sticky="w")  # 标签
+        Label(self.translate_general_option_frame, text="文本翻译线程数量:").grid(row=2, column=0, sticky="w")  # 标签
 
         # # 输入框
         # self.thread_workers_entry = Entry(self.master, width=50)  # 输入框
@@ -111,23 +167,23 @@ class EPUBTranslatorUI:
         # self.thread_workers_entry.grid(row=6, column=1)  # 输入框的布局
 
         # 组合框
-        self.thread_workers_combobox = Combobox(self.master, values=["1", "2", "4", "8", "16", "32"], state='readonly')
+        self.thread_workers_combobox = Combobox(self.translate_general_option_frame, values=["1", "2", "4", "8", "16", "32"], state='readonly')
         self.thread_workers_combobox.current(3)  # 设置默认值为8（索引从0开始，所以8的索引是3）
-        self.thread_workers_combobox.grid(row=6, column=1, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
+        self.thread_workers_combobox.grid(row=2, column=1, columnspan=2, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
 
-        Label(self.master, text="章节并行处理线程数量:").grid(row=7, column=0, sticky="w")  # 标签
+        Label(self.translate_general_option_frame, text="章节并行处理线程数量:   ").grid(row=3, column=0, sticky="w")  # 标签
         # self.processes_entry = Entry(self.master, width=50)  # 输入框
         # self.processes_entry.insert(0, "8")  # 设置默认值为8
         # self.processes_entry.grid(row=7, column=1)  # 输入框的布局
 
         # 组合框
-        self.processes_combobox = Combobox(self.master, values=["1", "2", "4", "8", "16", "32"], state='readonly')
+        self.processes_combobox = Combobox(self.translate_general_option_frame, values=["1", "2", "4", "8", "16", "32"], state='readonly')
         self.processes_combobox.current(3)  # 设置默认值为8（索引从0开始，所以8的索引是3）
-        self.processes_combobox.grid(row=7, column=1, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
+        self.processes_combobox.grid(row=3, column=1, columnspan=2, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
 
         # 搞个分割线
-        self.canvas = tk.Canvas(root, width=700, height=2, bg='orange')
-        self.canvas.grid(row=8, column=0, columnspan=6)
+        self.canvas = tk.Canvas(root, width=600, height=2, bg='orange')
+        self.canvas.grid(row=8, column=0, columnspan=6, sticky="w")
 
 
         # 创建一个框架来包含日志相关按钮
@@ -163,8 +219,8 @@ class EPUBTranslatorUI:
             Radiobutton(self.log_level_frame, text=display_text, variable=self.log_level_var, value=level).grid(row=1, column=i + 1, sticky="w")  # 单选按钮
 
         # 搞个分割线
-        self.canvas = tk.Canvas(root, width=700, height=2, bg='orange')
-        self.canvas.grid(row=11, column=0, columnspan=6)
+        self.canvas = tk.Canvas(root, width=600, height=2, bg='orange')
+        self.canvas.grid(row=11, column=0, columnspan=6, sticky="w")
 
         self.tags_label = Label(self.master, text="要翻译的标签:")  # 标签
         # self.tags_label.grid(row=10, column=0, sticky="w")
@@ -173,7 +229,7 @@ class EPUBTranslatorUI:
         # 标签复选框可见性
         self.tags_frame_visible_button = Button(self.master, text="显示翻译标签复选框",
                                                 command=self.tags_frame_visibility)
-        self.tags_frame_visible_button.grid(row=12, column=2, sticky="w")
+        self.tags_frame_visible_button.grid(row=12, column=1, sticky="w")
 
         self.tags = ["title", "h1", "h2", "h3", "h4", "span", "p", "a", "li", "i"]  # 标签列表
         self.tag_vars = {tag: tk.BooleanVar(value=True) for tag in self.tags}  # 创建每个标签的BooleanVar
@@ -188,29 +244,47 @@ class EPUBTranslatorUI:
             self.tags_frame_checkbutton = Checkbutton(self.tags_frame, text=tag, variable=self.tag_vars[tag]) # 布局复选框
             self.tags_frame_checkbutton.grid(row=0, column=i, padx=5, pady=5, sticky="w")
 
+
+        # 使用框架包裹进度条和翻译按钮
+        self.translate_progress_frame = Frame(self.master)  # 创建一个框架
+        self.translate_progress_frame.grid(row=18, column=0, sticky="we")  # 布局框架
+
         # 创建动态进度条
-        Label(self.master, text="翻译中，请等待：").grid(row=15, column=0, sticky="w")  # 标签
-        self.progress = Progressbar(self.master, orient="horizontal", length=300, mode="indeterminate")  # 创建动态进度条
-        self.progress.grid(row=15, column=1, columnspan=2)  # 布局进度条
+        Label(self.translate_progress_frame, text="翻译进度 ： ").grid(row=0, column=0, sticky="w")  # 标签
+        self.progress = Progressbar(self.translate_progress_frame, orient="horizontal", length=300, mode="indeterminate")  # 创建动态进度条
+        self.progress.grid(row=0, column=1, columnspan=4)  # 布局进度条
 
         # 创建翻译按钮
-        self.translate_button = Button(self.master, text="开始翻译", command=self.run_translation)  # 按钮
-        self.translate_button.grid(row=16, column=0, columnspan=3)    # 按钮的布局
+        self.translate_button = Button(self.translate_progress_frame, text="开始翻译", command=self.run_translation)  # 按钮
+        self.translate_button.grid(row=1, column=0, columnspan=3)    # 按钮的布局
 
-    def api_suffixes_visibility(self):
+    def google_api_frame_visibility(self):
+        # #先隐藏隔壁参数
+        # self.zhipu_api_frame_visibility()
+
         # 切换标签和复选框的可见性
-        if self.api_suffixes_label.winfo_viewable():
+        if self.google_api_frame.winfo_viewable():
             # 如果当前是可见的，则隐藏
-            # self.api_suffixes_label.grid_forget()
-            # self.api_suffixes_frame.grid_forget()
             self.google_api_frame.grid_forget()
-            self.api_suffixes_visible_button.config(text="显示谷歌翻译API参数")
+            self.google_api_frame_visible_button.config(text="显示谷歌翻译API参数")
         else:
             # 如果当前是隐藏的，则显示
-            self.google_api_frame.grid(row=2, column=0, columnspan=5, sticky="w")  # 布局框架
-            # self.api_suffixes_label.grid(row=2, column=0, sticky="w")
-            # self.api_suffixes_frame.grid(row=2, column=1, sticky="w")
-            self.api_suffixes_visible_button.config(text="隐藏谷歌翻译API参数")
+            self.google_api_frame.grid(row=3, column=0, columnspan=5, sticky="w")  # 布局框架
+            self.google_api_frame_visible_button.config(text="隐藏谷歌翻译API参数")
+
+    def zhipu_api_frame_visibility(self):
+        # # 先隐藏隔壁参数
+        # self.google_api_frame_visibility()
+
+        # 切换标签和复选框的可见性
+        if self.zhipu_api_frame.winfo_viewable():
+            # 如果当前是可见的，则隐藏
+            self.zhipu_api_frame.grid_forget()
+            self.zhipu_api_frame_visible_button.config(text="显示智谱翻译API参数")
+        else:
+            # 如果当前是隐藏的，则显示
+            self.zhipu_api_frame.grid(row=2, column=0, columnspan=5, sticky="w")  # 布局框架
+            self.zhipu_api_frame_visible_button.config(text="隐藏智谱翻译API参数")
 
     def tags_frame_visibility(self):
         # 切换标签和复选框的可见性
@@ -315,6 +389,15 @@ class EPUBTranslatorUI:
         # 设置日志级别，使用默认级别如果提供的级别无效
         log_level = getattr(logging, log_level, logging.INFO)  # 获取日志级别
 
+        # 获取翻译API
+        translator_api = self.translator_api_var.get()
+
+        # 获取 智谱API_KEY
+        zhipu_api_key = self.zhipu_api_key_entry.get()
+
+        # 获取智谱翻译超时参数
+        zhipu_translate_timeout = int(self.zhipu_translate_timeout_entry.get())
+
         # 创建并运行EPUB翻译器
         translator = EPUBTranslator(
             epub_paths,
@@ -326,7 +409,10 @@ class EPUBTranslatorUI:
             dest_lang,
             trans_mode,
             thread_workers,
-            tags_to_translate
+            tags_to_translate,
+            translator_api=translator_api,
+            zhipu_api_key=zhipu_api_key,
+            zhipu_translate_timeout=zhipu_translate_timeout
         )
 
         try:
