@@ -35,33 +35,41 @@ class EPUBTranslatorUI:
         self.select_files_button = Button(self.master, text="选择文件", command=self.select_files)  # 按钮
         self.select_files_button.grid(row=0, column=2)  # 按钮的布局
 
-        # 修改HTTP代理的布局，使其更紧凑
-        Label(self.master, text="HTTP 代理 - IP地址:").grid(row=1, column=0, sticky="w")  # 标签
-        self.proxy_ip_entry = Entry(self.master, width=20)  # 输入框，用于输入IP地址
-        self.proxy_ip_entry.insert(0, "127.0.0.1")  # 设置默认值为127.0.0.1
-        self.proxy_ip_entry.grid(row=1, column=1, sticky="w")  # 布局IP地址输入框
-
-        Label(self.master, text="端口:").grid(row=1, column=2, sticky="e")  # 标签
-        self.proxy_port_entry = Entry(self.master, width=10)  # 输入框，用于输入端口
-        self.proxy_port_entry.insert(0, "7890")  # 设置默认值为7890
-        self.proxy_port_entry.grid(row=1, column=3, sticky="w", padx=(0, 20))  # 布局端口输入框
-
-        self.api_suffixes_label = Label(self.master, text="要使用的API后缀:")  # 标签
-        # self.api_suffixes_label.grid(row=2, column=0, sticky="w")
-        self.api_suffixes_label.grid_forget()
-
-        # API后缀复选框可见性
-        self.api_suffixes_visible_button = Button(self.master, text="显示API后缀复选框",
-                                                command=self.api_suffixes_visibility)
+        # 谷歌翻译API参数可见性
+        self.api_suffixes_visible_button = Button(self.master, text="显示谷歌翻译API参数",
+                                                  command=self.api_suffixes_visibility)
         self.api_suffixes_visible_button.grid(row=2, column=2, sticky="w")
+
+        # 创建一个框架包含所有google翻译相关选项
+        self.google_api_frame = Frame(self.master)  # 创建一个框架
+        # self.google_api_frame.grid(row=2, column=0, columnspan=5, sticky="w")  # 布局框架
+        self.google_api_frame.grid_forget()
+
+        # 修改HTTP代理的布局，使其更紧凑
+        Label(self.google_api_frame, text="HTTP 代理:").grid(row=0, column=0, sticky="w")  # 标签
+        Label(self.google_api_frame, text="IP地址:").grid(row=1, column=1, sticky="w")
+        self.proxy_ip_entry = Entry(self.google_api_frame, width=20)  # 输入框，用于输入IP地址
+        self.proxy_ip_entry.insert(0, "127.0.0.1")  # 设置默认值为127.0.0.1
+        self.proxy_ip_entry.grid(row=1, column=2, sticky="w", columnspan=2)  # 布局IP地址输入框
+
+        Label(self.google_api_frame, text="    端口:").grid(row=1, column=4, sticky="w")  # 标签
+        self.proxy_port_entry = Entry(self.google_api_frame, width=10)  # 输入框，用于输入端口
+        self.proxy_port_entry.insert(0, "7890")  # 设置默认值为7890
+        self.proxy_port_entry.grid(row=1, column=5, sticky="w", padx=(0, 20))  # 布局端口输入框
+
+        self.api_suffixes_label = Label(self.google_api_frame, text="要使用的API后缀:")  # 标签
+        # self.api_suffixes_label.grid(row=2, column=0, sticky="w")
+        self.api_suffixes_label.grid(row=2, column=0, sticky="w")
+        # self.api_suffixes_label.grid_forget()
 
         self.api_suffixes = ["com", "com.hk", "com.tw", "co.jp", "com.sg", "co.uk"]  # 标签列表
         self.api_suffix_vars = {tag: tk.BooleanVar(value=True) for tag in self.api_suffixes}  # 创建每个标签的BooleanVar
 
-        # 创建一个框架来包含API后缀复选框
-        self.api_suffixes_frame = Frame(self.master)  # 创建一个框架
+        # 创建一个框架来包含谷歌翻译API参数
+        self.api_suffixes_frame = Frame(self.google_api_frame)  # 创建一个框架
         # self.api_suffixes_frame.grid(row=2, column=1, sticky="w")  # 布局框架
-        self.api_suffixes_frame.grid_forget()
+        self.api_suffixes_frame.grid(row=2, column=1, sticky="w")
+        # self.api_suffixes_frame.grid_forget()
 
         # 创建复选框
         for i, api_suffix in enumerate(self.api_suffixes):
@@ -87,7 +95,6 @@ class EPUBTranslatorUI:
 
         # 禁止下拉框菜单项的tearoff行为
         self.language_menu['menu'].config(tearoff=0)
-
 
         # 添加翻译模式单选按钮
         self.trans_mode_var = tk.IntVar(value=1)  # 默认值为1
@@ -118,40 +125,55 @@ class EPUBTranslatorUI:
         self.processes_combobox.current(3)  # 设置默认值为8（索引从0开始，所以8的索引是3）
         self.processes_combobox.grid(row=7, column=1, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
 
-        Label(self.master, text="日志文件路径:").grid(row=8, column=0, sticky="w")  # 标签
-        self.log_file_entry = Entry(self.master, width=50)  # 输入框
+        # 搞个分割线
+        self.canvas = tk.Canvas(root, width=700, height=2, bg='orange')
+        self.canvas.grid(row=8, column=0, columnspan=6)
+
+
+        # 创建一个框架来包含日志相关按钮
+        self.log_level_frame = Frame(self.master)  # 创建一个框架
+        self.log_level_frame.grid(row=10, column=0, columnspan=5, sticky="w")  # 布局框架
+
+        Label(self.log_level_frame, text="日志文件路径:    ").grid(row=0, column=0, sticky="w")  # 标签
+        self.log_file_entry = Entry(self.log_level_frame, width=50)  # 输入框
 
         # 获取用户的下载文件夹路径
         downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")  # 获取下载文件夹路径
         default_log_file_path = os.path.join(downloads_folder, "epubTranslate.log")  # 设置默认日志文件路径
         self.log_file_entry.insert(0, default_log_file_path)  # 设置输入框默认值
 
-        self.log_file_entry.grid(row=8, column=1)  # 输入框的布局
+        self.log_file_entry.grid(row=0, column=1, columnspan=4)  # 输入框的布局
 
         # 创建选择文件按钮
-        self.select_log_file_button = Button(self.master, text="选择文件", command=self.select_log_file)  # 按钮
-        self.select_log_file_button.grid(row=8, column=2)  # 按钮的布局
+        self.select_log_file_button = Button(self.log_level_frame, text="选择文件", command=self.select_log_file)  # 按钮
+        self.select_log_file_button.grid(row=0, column=5)  # 按钮的布局
 
-        # 创建一个框架来包含日志级别单选按钮
-        log_level_frame = Frame(self.master)  # 创建一个框架
-        log_level_frame.grid(row=9, column=0, columnspan=3, sticky="w")  # 布局框架
-
-        Label(log_level_frame, text="日志级别:").grid(row=0, column=0, sticky="w")  # 标签
+        Label(self.log_level_frame, text="日志级别:").grid(row=1, column=0, sticky="w")  # 标签
         self.log_level_var = tk.StringVar(value="INFO")  # 默认值为INFO
-        logging_levels = ["DEBUG", "INFO", "WARNING", "ERROR"]  # 日志级别列表
-        for i, level in enumerate(logging_levels):
-            Radiobutton(log_level_frame, text=level, variable=self.log_level_var, value=level).grid(row=0, column=i + 1, sticky="w")  # 单选按钮
+        self.logging_levels = ["DEBUG", "INFO", "WARNING", "ERROR"]  # 日志级别列表
+        self.display_texts = {
+            "DEBUG": "调试",
+            "INFO": "提示",
+            "WARNING": "警告",
+            "ERROR": "错误"
+        }
+        for i, level in enumerate(self.logging_levels):
+            # 从映射字典中获取显示文本
+            display_text = self.display_texts[level]
+            Radiobutton(self.log_level_frame, text=display_text, variable=self.log_level_var, value=level).grid(row=1, column=i + 1, sticky="w")  # 单选按钮
 
+        # 搞个分割线
+        self.canvas = tk.Canvas(root, width=700, height=2, bg='orange')
+        self.canvas.grid(row=11, column=0, columnspan=6)
 
-
-        self.tags_label = Label(self.master, text="要翻译的标签:") # 标签
+        self.tags_label = Label(self.master, text="要翻译的标签:")  # 标签
         # self.tags_label.grid(row=10, column=0, sticky="w")
         self.tags_label.grid_forget()
 
         # 标签复选框可见性
         self.tags_frame_visible_button = Button(self.master, text="显示翻译标签复选框",
                                                 command=self.tags_frame_visibility)
-        self.tags_frame_visible_button.grid(row=10, column=2, sticky="w")
+        self.tags_frame_visible_button.grid(row=12, column=2, sticky="w")
 
         self.tags = ["title", "h1", "h2", "h3", "h4", "span", "p", "a", "li", "i"]  # 标签列表
         self.tag_vars = {tag: tk.BooleanVar(value=True) for tag in self.tags}  # 创建每个标签的BooleanVar
@@ -167,26 +189,28 @@ class EPUBTranslatorUI:
             self.tags_frame_checkbutton.grid(row=0, column=i, padx=5, pady=5, sticky="w")
 
         # 创建动态进度条
-        Label(self.master, text="翻译中，请等待：").grid(row=12, column=0, sticky="w")  # 标签
+        Label(self.master, text="翻译中，请等待：").grid(row=15, column=0, sticky="w")  # 标签
         self.progress = Progressbar(self.master, orient="horizontal", length=300, mode="indeterminate")  # 创建动态进度条
-        self.progress.grid(row=12, column=1, columnspan=2)  # 布局进度条
+        self.progress.grid(row=15, column=1, columnspan=2)  # 布局进度条
 
         # 创建翻译按钮
         self.translate_button = Button(self.master, text="开始翻译", command=self.run_translation)  # 按钮
-        self.translate_button.grid(row=14, column=0, columnspan=3)    # 按钮的布局
+        self.translate_button.grid(row=16, column=0, columnspan=3)    # 按钮的布局
 
     def api_suffixes_visibility(self):
         # 切换标签和复选框的可见性
         if self.api_suffixes_label.winfo_viewable():
             # 如果当前是可见的，则隐藏
-            self.api_suffixes_label.grid_forget()
-            self.api_suffixes_frame.grid_forget()
-            self.api_suffixes_visible_button.config(text="显示API后缀复选框")
+            # self.api_suffixes_label.grid_forget()
+            # self.api_suffixes_frame.grid_forget()
+            self.google_api_frame.grid_forget()
+            self.api_suffixes_visible_button.config(text="显示谷歌翻译API参数")
         else:
             # 如果当前是隐藏的，则显示
-            self.api_suffixes_label.grid(row=2, column=0, sticky="w")
-            self.api_suffixes_frame.grid(row=2, column=1, sticky="w")
-            self.api_suffixes_visible_button.config(text="隐藏API后缀复选框")
+            self.google_api_frame.grid(row=2, column=0, columnspan=5, sticky="w")  # 布局框架
+            # self.api_suffixes_label.grid(row=2, column=0, sticky="w")
+            # self.api_suffixes_frame.grid(row=2, column=1, sticky="w")
+            self.api_suffixes_visible_button.config(text="隐藏谷歌翻译API参数")
 
     def tags_frame_visibility(self):
         # 切换标签和复选框的可见性
@@ -197,8 +221,8 @@ class EPUBTranslatorUI:
             self.tags_frame_visible_button.config(text="显示翻译标签复选框")
         else:
             # 如果当前是隐藏的，则显示
-            self.tags_label.grid(row=10, column=0, sticky="w")
-            self.tags_frame.grid(row=11, column=0, columnspan=3, sticky="w")
+            self.tags_label.grid(row=13, column=0, sticky="w")
+            self.tags_frame.grid(row=14, column=0, columnspan=3, sticky="w")
             self.tags_frame_visible_button.config(text="隐藏翻译标签复选框")
 
     def select_files(self):
