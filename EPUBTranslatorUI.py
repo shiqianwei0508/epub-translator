@@ -46,17 +46,26 @@ class EPUBTranslatorUI:
         self.proxy_port_entry.insert(0, "7890")  # 设置默认值为7890
         self.proxy_port_entry.grid(row=1, column=3, sticky="w", padx=(0, 20))  # 布局端口输入框
 
-        Label(self.master, text="要使用的API后缀:").grid(row=2, column=0, sticky="w")  # 标签
+        self.api_suffixes_label = Label(self.master, text="要使用的API后缀:")  # 标签
+        # self.api_suffixes_label.grid(row=2, column=0, sticky="w")
+        self.api_suffixes_label.grid_forget()
+
+        # API后缀复选框可见性
+        self.api_suffixes_visible_button = Button(self.master, text="显示API后缀复选框",
+                                                command=self.api_suffixes_visibility)
+        self.api_suffixes_visible_button.grid(row=2, column=2, sticky="w")
+
         self.api_suffixes = ["com", "com.hk", "com.tw", "co.jp", "com.sg", "co.uk"]  # 标签列表
         self.api_suffix_vars = {tag: tk.BooleanVar(value=True) for tag in self.api_suffixes}  # 创建每个标签的BooleanVar
 
         # 创建一个框架来包含API后缀复选框
-        api_suffixes_frame = Frame(self.master)  # 创建一个框架
-        api_suffixes_frame.grid(row=2, column=1, sticky="w")  # 布局框架
+        self.api_suffixes_frame = Frame(self.master)  # 创建一个框架
+        # self.api_suffixes_frame.grid(row=2, column=1, sticky="w")  # 布局框架
+        self.api_suffixes_frame.grid_forget()
 
         # 创建复选框
         for i, api_suffix in enumerate(self.api_suffixes):
-            Checkbutton(api_suffixes_frame, text=api_suffix, variable=self.api_suffix_vars[api_suffix]).grid(row=i, sticky="w")  # 布局复选框
+            Checkbutton(self.api_suffixes_frame, text=api_suffix, variable=self.api_suffix_vars[api_suffix]).grid(row=i, sticky="w")  # 布局复选框
 
         Label(self.master, text="目标语言:").grid(row=4, column=0, sticky="w")  # 标签
         # # 创建目标语言单选按钮
@@ -133,17 +142,29 @@ class EPUBTranslatorUI:
         for i, level in enumerate(logging_levels):
             Radiobutton(log_level_frame, text=level, variable=self.log_level_var, value=level).grid(row=0, column=i + 1, sticky="w")  # 单选按钮
 
-        Label(self.master, text="要翻译的标签:").grid(row=10, column=0, sticky="w")  # 标签
-        self.tags = ["title", "h1", "h2", "h3", "span", "p", "a", "li"]  # 标签列表
+
+
+        self.tags_label = Label(self.master, text="要翻译的标签:") # 标签
+        # self.tags_label.grid(row=10, column=0, sticky="w")
+        self.tags_label.grid_forget()
+
+        # 标签复选框可见性
+        self.tags_frame_visible_button = Button(self.master, text="显示翻译标签复选框",
+                                                command=self.tags_frame_visibility)
+        self.tags_frame_visible_button.grid(row=10, column=2, sticky="w")
+
+        self.tags = ["title", "h1", "h2", "h3", "h4", "span", "p", "a", "li", "i"]  # 标签列表
         self.tag_vars = {tag: tk.BooleanVar(value=True) for tag in self.tags}  # 创建每个标签的BooleanVar
 
         # 创建一个框架来包含标签复选框
-        tags_frame = Frame(self.master)  # 创建一个框架
-        tags_frame.grid(row=11, column=0, columnspan=3, sticky="w")  # 布局框架
+        self.tags_frame = Frame(self.master)  # 创建一个框架
+        # self.tags_frame.grid(row=11, column=0, columnspan=3, sticky="w")  # 布局框架
+        self.tags_frame.grid_forget()
 
         # 创建复选框
         for i, tag in enumerate(self.tags):
-            Checkbutton(tags_frame, text=tag, variable=self.tag_vars[tag]).grid(row=0, column=i, padx=5, pady=5, sticky="w")  # 布局复选框
+            self.tags_frame_checkbutton = Checkbutton(self.tags_frame, text=tag, variable=self.tag_vars[tag]) # 布局复选框
+            self.tags_frame_checkbutton.grid(row=0, column=i, padx=5, pady=5, sticky="w")
 
         # 创建动态进度条
         Label(self.master, text="翻译中，请等待：").grid(row=12, column=0, sticky="w")  # 标签
@@ -153,6 +174,32 @@ class EPUBTranslatorUI:
         # 创建翻译按钮
         self.translate_button = Button(self.master, text="开始翻译", command=self.run_translation)  # 按钮
         self.translate_button.grid(row=14, column=0, columnspan=3)    # 按钮的布局
+
+    def api_suffixes_visibility(self):
+        # 切换标签和复选框的可见性
+        if self.api_suffixes_label.winfo_viewable():
+            # 如果当前是可见的，则隐藏
+            self.api_suffixes_label.grid_forget()
+            self.api_suffixes_frame.grid_forget()
+            self.api_suffixes_visible_button.config(text="显示API后缀复选框")
+        else:
+            # 如果当前是隐藏的，则显示
+            self.api_suffixes_label.grid(row=2, column=0, sticky="w")
+            self.api_suffixes_frame.grid(row=2, column=1, sticky="w")
+            self.api_suffixes_visible_button.config(text="隐藏API后缀复选框")
+
+    def tags_frame_visibility(self):
+        # 切换标签和复选框的可见性
+        if self.tags_label.winfo_viewable():
+            # 如果当前是可见的，则隐藏
+            self.tags_label.grid_forget()
+            self.tags_frame.grid_forget()
+            self.tags_frame_visible_button.config(text="显示翻译标签复选框")
+        else:
+            # 如果当前是隐藏的，则显示
+            self.tags_label.grid(row=10, column=0, sticky="w")
+            self.tags_frame.grid(row=11, column=0, columnspan=3, sticky="w")
+            self.tags_frame_visible_button.config(text="隐藏翻译标签复选框")
 
     def select_files(self):
         # 打开文件选择对话框，允许选择多个EPUB文件

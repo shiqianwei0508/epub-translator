@@ -38,7 +38,7 @@ class EPUBTranslator(XHTMLTranslator):
     translate_db = None
 
     def __init__(self, file_paths, processes, http_proxy, log_file, log_level, gtransapi_suffixes, dest_lang,
-                 trans_mode, translate_thread_workers, tags_to_translate, translator_api, **translator_kwargs):
+                 trans_mode, translate_thread_workers, tags_to_translate, translator_api='google', **translator_kwargs):
         self.file_paths = file_paths
         self.processes = processes
         super(EPUBTranslator, self).__init__(http_proxy, gtransapi_suffixes, dest_lang,
