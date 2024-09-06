@@ -7,7 +7,7 @@ import traceback
 from zhipuai import ZhipuAI
 
 # 配置日志记录
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class ZhipuAiTranslate:
@@ -54,6 +54,7 @@ class ZhipuAiTranslate:
             error_message = self.extract_error_message(e)
             if error_message:
                 logging.error(f"API error: {error_message}")
+                logging.error(f"内容无法翻译: {self.user_content}")
                 return f"智谱API error: {error_message}"
         self.task_id = response.id
 
@@ -80,6 +81,7 @@ class ZhipuAiTranslate:
                 error_message = self.extract_error_message(e)
                 if error_message:
                     logging.error(f"API error: {error_message}")
+                    logging.error(f"内容无法翻译: {self.user_content}")
                     return f"智谱API error: {error_message}"
 
             time.sleep(1)

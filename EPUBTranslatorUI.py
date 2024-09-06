@@ -178,7 +178,7 @@ class EPUBTranslatorUI:
 
         # 组合框
         self.processes_combobox = Combobox(self.translate_general_option_frame, values=["1", "2", "4", "8", "16", "32"], state='readonly')
-        self.processes_combobox.current(3)  # 设置默认值为8（索引从0开始，所以8的索引是3）
+        self.processes_combobox.current(1)  # 设置默认值为8（索引从0开始，所以8的索引是3）
         self.processes_combobox.grid(row=3, column=1, columnspan=2, sticky="ew")  # 使用sticky="ew"使Combobox填充整个列宽
 
         # 搞个分割线
