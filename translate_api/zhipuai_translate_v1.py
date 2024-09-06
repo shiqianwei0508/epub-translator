@@ -35,19 +35,26 @@ class ZhipuAiTranslate:
         self.assistant_content = ''
 
         # 提交任务
-        response = self.client.chat.asyncCompletions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": self.system_content
-                },
-                {
-                    "role": "user",
-                    "content": self.user_content
-                }
-            ],
-        )
+        try:
+            response = self.client.chat.asyncCompletions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self.system_content
+                    },
+                    {
+                        "role": "user",
+                        "content": self.user_content
+                    }
+                ],
+            )
+        except Exception as e:
+            logging.error(f"Error checking task status: {e}")
+            error_message = self.extract_error_message(e)
+            if error_message:
+                logging.error(f"API error: {error_message}")
+                return f"智谱API error: {error_message}"
         self.task_id = response.id
 
         # 检查任务状态
@@ -70,18 +77,10 @@ class ZhipuAiTranslate:
 
             except Exception as e:
                 logging.error(f"Error checking task status: {e}")
-                # 使用正则表达式查找大括号包围的内容
-                match = re.search(r'\{.*\}', str(e))
-
-                # 如果有匹配，提取内容
-                if match:
-                    bracket_content = match.group(0)
-                    print(bracket_content)
-                else:
-                    print("No matching content found.")
-                error_text = json.loads(bracket_content).get('error', {}).get('message', '')
-                return {"智谱AI": error_text}
-                break
+                error_message = self.extract_error_message(e)
+                if error_message:
+                    logging.error(f"API error: {error_message}")
+                    return f"智谱API error: {error_message}"
 
             time.sleep(1)
             get_cnt += 1
@@ -96,9 +95,20 @@ class ZhipuAiTranslate:
             logging.error("Translation status check exceeded maximum attempts.")
             return None
 
+    def extract_error_message(self, exception):
+        # 使用正则表达式查找大括号包围的内容
+        match = re.search(r'\{.*\}', str(exception))
+        if match:
+            bracket_content = match.group(0)
+            try:
+                error_data = json.loads(bracket_content)
+                return error_data.get('error', {}).get('message', '')
+            except json.JSONDecodeError:
+                return ""
+        return ""
 
 if __name__ == "__main__":
-    api_key = "418234312598633f63b857c945a47f1f.x3jeQyzDJNk9KXJ4"
+    api_key = ""
     translator = ZhipuAiTranslate(zhipu_api_key=api_key, zhipu_translate_timeout=30)
 
     # 示例翻译
@@ -110,7 +120,7 @@ if __name__ == "__main__":
     # logging.info(f"Translation to English: {translation_to_en}")
 
     text_to_translate_en = '''
-    If they do make it into Burma, the women face imprisonment or worse. If apprehended by Burmese border patrols they are charged with “illegal departure” from Burma. If they cannot pay the fine, and most cannot, they serve six months’ hard labor. Imprisonment applies to all those convicted—men, women, and children. If a girl or woman is suspected of having been a prostitute she can face additional charges and long sentences. Women found to be HIV-positive have been imprisoned and executed by the Burmese military dictatorship. According to Human Rights Watch there are consistent reports of “deportees being routinely arrested, detained, subjected to abuse and forced to porter for the military. Torture, rape and execution have been well documented by the United Nations bodies, international human rights organizations, and governments.”
+    Beginning in the mid-1980s a number of researchers and human rights campaigners had exposed the horrific conditions and the use of slave labor in the charcoal camps of the Mato Grosso. At that time gatos were recruiting and enslaving whole families, and children were commonly seen loading and unloading the ovens. A number of children died of burns and other accidents. By the end of the 1980s the main human rights organization in Brazil, the Pastoral Land Commission (or CPT), had published a number of reports, picked up by the national press and television, that denounced the situation in the batterias. In spite of this publicity no government action was taken. In 1991 further pressure from human rights lawyers and the churches impelled the government to set up a commission of inquiry. Again, time passed and nothing changed; the government commission never reported. Trying to keep up the pressure, the CPT joined with other nongovernmental organizations and set up an independent commission in 1993 that fed a stream of reports and documentation to the media. Yet two more years passed before any action was taken. By now a decade had passed since unmistakable and ongoing violations of the Brazilian law against slavery had been clearly documented, but national, state, and local governments remained paralyzed.
     '''
     translation_to_zh = translator.translate(text_to_translate_en, "zh-cn")  # 设置超时时间为30秒（实际在初始化时设置了10秒）
     logging.info(f"Translation to Chinese: {translation_to_zh}")

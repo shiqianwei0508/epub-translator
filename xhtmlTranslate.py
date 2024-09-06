@@ -139,7 +139,7 @@ class XHTMLTranslator:
                 else:
                     # 从第 4 次开始修改后缀并重建实例
                     self.current_suffix = next(self.gtransapi_suffixes_cycle)
-                    translatorObj = google_translator(timeout=5, url_suffix=self.current_suffix,
+                    translatorObj = translator_class(timeout=5, url_suffix=self.current_suffix,
                                                       proxies={'http': self.http_proxy, 'https': self.http_proxy})
                     self.logger.error(f"Retrying in {wait_time:.2f} seconds with new suffix: {self.current_suffix}...")
 
@@ -177,7 +177,8 @@ class XHTMLTranslator:
         # 收集需要翻译的文本和对应的元素
         texts_to_translate = []
         for element in descendants:
-            if isinstance(element, NavigableString) and element.strip() and element.parent.name in supported_tags:
+            # if isinstance(element, NavigableString) and element.strip() and element.parent.name in supported_tags:
+            if isinstance(element, NavigableString) and element.parent.name in supported_tags:
                 # 检查元素是否包含字母且不只是数字
                 if re.search(r'[a-zA-Z]', element) and not re.match(r'^\d+$', element):
                     need_translate = element.strip()
@@ -205,6 +206,10 @@ class XHTMLTranslator:
                 translated_text = future.result()
                 self.logger.debug(f"Received translation for: '{original_text}': {translated_text}")
 
+                # if isinstance(translated_text, dict) and "error" in translated_text:
+                #     self.logger.error(f"Failed to translate '{original_text}': {translated_text['error']}")
+                #     continue
+
                 # 如果 translated_text 为空，直接返回，不再处理此文本
                 if translated_text is None or translated_text == "":
                     self.logger.warning(f"Translated text is empty for '{original_text}'. Skipping to next.")
@@ -213,10 +218,26 @@ class XHTMLTranslator:
                 translations.append((element, translated_text))  # 存储原始元素和翻译结果
                 self.logger.debug(f"Successfully translated '{original_text}' to '{translated_text}'")
 
-            # 统一替换翻译结果
+        # 统一替换翻译结果
+        # for element, translated_text in translations:
+        #     try:
+        #         element.replace_with(translated_text)
+        #         self.logger.debug(f"Replaced with translated text: '{translated_text}'")
+        #     except Exception as e:
+        #         self.logger.warning(f"Error during translation of paragraphs: {e}")
+
         for element, translated_text in translations:
-            element.replace_with(translated_text)
-            self.logger.debug(f"Replaced with translated text: '{translated_text}'")
+            try:
+                element.replace_with(translated_text)
+                self.logger.debug(f"Replaced with translated text: '{translated_text}'")
+            except AttributeError as e:
+                self.logger.warning(f"Invalid element: {element}. Skipping. ")
+                self.logger.warning(f"The data class of the element: {type(element)}")
+                self.logger.warning(f"The data class of the translated text: {type(translated_text)}")
+                self.logger.warning(f"Error details: {e}")
+                continue
+            except Exception as e:
+                self.logger.warning(f"Error during translation of paragraphs: {e}")
 
         self.logger.debug(f"Finished translation of chapter '{chapter_item}'.")
         with open(chapter_item, 'w', encoding='utf-8') as file:
