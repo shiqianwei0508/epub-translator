@@ -2,7 +2,7 @@ import json
 import re
 import time
 import logging
-import traceback
+# import traceback
 
 from zhipuai import ZhipuAI
 
@@ -23,7 +23,7 @@ class ZhipuAiTranslate:
     def __init__(self, zhipu_api_key, zhipu_model="glm-4-flash", zhipu_translate_timeout=10):
         self.api_key = zhipu_api_key
         self.client = ZhipuAI(api_key=self.api_key)
-        self.model = zhipu_model if zhipu_model else self.model
+        self.model = zhipu_model
         self.timeout = zhipu_translate_timeout
 
     def translate(self, user_content, target_language):
@@ -49,6 +49,7 @@ class ZhipuAiTranslate:
                     }
                 ],
             )
+            self.task_id = response.id
         except Exception as e:
             logging.error(f"Error checking task status: {e}")
             error_message = self.extract_error_message(e)
@@ -56,7 +57,6 @@ class ZhipuAiTranslate:
                 logging.error(f"API error: {error_message}")
                 logging.error(f"内容无法翻译: {self.user_content}")
                 return f"智谱API error: {error_message}"
-        self.task_id = response.id
 
         # 检查任务状态
         start_time = time.time()
@@ -110,7 +110,7 @@ class ZhipuAiTranslate:
         return ""
 
 if __name__ == "__main__":
-    api_key = ""
+    api_key = "68d7137473437a6aa3025e6c8ba8a614.fR45KbBnM5Z7StmN"
     translator = ZhipuAiTranslate(zhipu_api_key=api_key, zhipu_translate_timeout=30)
 
     # 示例翻译
@@ -122,10 +122,10 @@ if __name__ == "__main__":
     # logging.info(f"Translation to English: {translation_to_en}")
 
     text_to_translate_en = '''
-    Beginning in the mid-1980s a number of researchers and human rights campaigners had exposed the horrific conditions and the use of slave labor in the charcoal camps of the Mato Grosso. At that time gatos were recruiting and enslaving whole families, and children were commonly seen loading and unloading the ovens. A number of children died of burns and other accidents. By the end of the 1980s the main human rights organization in Brazil, the Pastoral Land Commission (or CPT), had published a number of reports, picked up by the national press and television, that denounced the situation in the batterias. In spite of this publicity no government action was taken. In 1991 further pressure from human rights lawyers and the churches impelled the government to set up a commission of inquiry. Again, time passed and nothing changed; the government commission never reported. Trying to keep up the pressure, the CPT joined with other nongovernmental organizations and set up an independent commission in 1993 that fed a stream of reports and documentation to the media. Yet two more years passed before any action was taken. By now a decade had passed since unmistakable and ongoing violations of the Brazilian law against slavery had been clearly documented, but national, state, and local governments remained paralyzed.
+    Trying to keep up the pressure, the CPT joined with other nongovernmental organizations and set up an independent commission in 1993 that fed a stream of reports and documentation to the media. Yet two more years passed before any action was taken. By now a decade had passed since unmistakable and ongoing violations of the Brazilian law against slavery had been clearly documented, but national, state, and local governments remained paralyzed.
     '''
     translation_to_zh = translator.translate(text_to_translate_en, "zh-cn")  # 设置超时时间为30秒（实际在初始化时设置了10秒）
-    logging.info(f"Translation to Chinese: {translation_to_zh}")
+    logging.warning(f"Translation to Chinese: {translation_to_zh}")
 
     # 更多语言的翻译示例
     # ...
